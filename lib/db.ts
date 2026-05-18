@@ -41,6 +41,16 @@ export async function dbExec(sql: string) {
   await client.executeMultiple(sql);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function dbBatch(statements: { sql: string; args: any[] }[]) {
+  if (statements.length === 0) return [];
+  const client = getClient();
+  return client.batch(
+    statements.map((s) => ({ sql: s.sql, args: s.args as InValue[] })),
+    "write"
+  );
+}
+
 // ── inicialização do schema (chamada uma vez) ──
 
 let _initialized = false;
