@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbRun, dbGet, initDB } from "@/lib/db";
 import { getConfig } from "@/lib/config";
-import { scrapeEquipe } from "@/lib/scraper-equipe";
+import { scrapeEquipe } from "@/lib/scraper-equipe-fetch";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   await initDB();
