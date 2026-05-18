@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/lib/db";
+import { dbRun, dbGet, initDB } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { scrapeEquipe } from "@/lib/scraper-equipe";
 
 export const maxDuration = 600;
 
 export async function POST(req: NextRequest) {
-  const cfg = getConfig();
+  await initDB();
+  const cfg = await getConfig();
   if (!cfg.usuario || !cfg.senha) {
     return NextResponse.json({ error: "Cadastre usuário e senha do Gestão em Configurações" }, { status: 400 });
   }
@@ -42,18 +43,14 @@ export async function POST(req: NextRequest) {
     if (!t.nome) continue;
     let existe: { id: number } | undefined;
     if (t.cpf_prefixo) {
-      existe = db.prepare("SELECT id FROM tecnicos WHERE cpf_prefixo = ?").get(t.cpf_prefixo) as
-        | { id: number }
-        | undefined;
+      existe = await dbGet<{ id: number }>("SELECT id FROM tecnicos WHERE cpf_prefixo = ?", t.cpf_prefixo);
     }
     if (!existe) {
-      existe = db.prepare("SELECT id FROM tecnicos WHERE LOWER(nome) = LOWER(?)").get(t.nome) as
-        | { id: number }
-        | undefined;
+      existe = await dbGet<{ id: number }>("SELECT id FROM tecnicos WHERE LOWER(nome) = LOWER(?)", t.nome);
     }
 
     if (existe) {
-      db.prepare(
+      await dbRun(
         `UPDATE tecnicos SET
            nome = ?,
            cpf_prefixo = COALESCE(?, cpf_prefixo),
@@ -61,14 +58,16 @@ export async function POST(req: NextRequest) {
            email = COALESCE(?, email),
            cidade = COALESCE(?, cidade),
            ultima_sync_gestao = ?
-         WHERE id = ?`
-      ).run(t.nome, t.cpf_prefixo, t.telefone, t.email, t.cidade, agora, existe.id);
+         WHERE id = ?`,
+        t.nome, t.cpf_prefixo, t.telefone, t.email, t.cidade, agora, existe.id
+      );
       atualizados++;
     } else {
-      db.prepare(
+      await dbRun(
         `INSERT INTO tecnicos (nome, cpf_prefixo, telefone, email, cidade, ultima_sync_gestao)
-         VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(t.nome, t.cpf_prefixo, t.telefone, t.email, t.cidade, agora);
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        t.nome, t.cpf_prefixo, t.telefone, t.email, t.cidade, agora
+      );
       inseridos++;
     }
   }

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/lib/db";
+import { dbRun, initDB } from "@/lib/db";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await initDB();
   const { id } = await params;
   const body = await req.json();
   const campos = ["apelido", "numero", "operadora", "identificador", "base_id", "evento_id", "observacao"];
@@ -19,12 +20,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   if (updates.length === 0) return NextResponse.json({ ok: true });
   values.push(id);
-  db.prepare(`UPDATE celulares_chip SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+  await dbRun(`UPDATE celulares_chip SET ${updates.join(", ")} WHERE id = ?`, ...values);
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await initDB();
   const { id } = await params;
-  db.prepare("DELETE FROM celulares_chip WHERE id = ?").run(id);
+  await dbRun("DELETE FROM celulares_chip WHERE id = ?", id);
   return NextResponse.json({ ok: true });
 }

@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/lib/db";
+import { dbAll, initDB } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
+  await initDB();
   const mes = req.nextUrl.searchParams.get("mes");
   const m = mes?.match(/^(\d{4})-(\d{2})$/);
   if (!m) return NextResponse.json({ error: "Parâmetro mes=YYYY-MM obrigatório" }, { status: 400 });
   const ano = m[1];
   const mm = m[2];
 
-  const rows = db
-    .prepare(
-      `
+  const rows = await dbAll<{ id: number; nome: string; telefone: string | null; total: number; eventos_str: string | null }>(
+    `
       SELECT t.id, t.nome, t.telefone,
              COALESCE(SUM(CASE WHEN e.id IS NOT NULL THEN 1 ELSE 0 END), 0) AS total,
              GROUP_CONCAT(
@@ -28,9 +28,10 @@ export async function GET(req: NextRequest) {
       WHERE t.ativo = 1
       GROUP BY t.id, t.nome, t.telefone
       ORDER BY total DESC, t.nome
-      `
-    )
-    .all(mm, ano) as { id: number; nome: string; telefone: string | null; total: number; eventos_str: string | null }[];
+      `,
+    mm,
+    ano
+  );
 
   const lista = rows.map((r) => ({
     id: r.id,

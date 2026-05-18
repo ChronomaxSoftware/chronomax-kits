@@ -1,25 +1,25 @@
-import db from "@/lib/db";
+import { dbGet, dbRun } from "@/lib/db";
 import { criptografar, descriptografar } from "@/lib/cripto";
 
-export function get(chave: string): string | null {
-  const r = db.prepare("SELECT valor FROM settings WHERE chave = ?").get(chave) as
-    | { valor: string }
-    | undefined;
+export async function get(chave: string): Promise<string | null> {
+  const r = await dbGet<{ valor: string }>("SELECT valor FROM settings WHERE chave = ?", chave);
   return r ? r.valor : null;
 }
 
-export function set(chave: string, valor: string | null) {
+export async function set(chave: string, valor: string | null) {
   if (valor === null || valor === "") {
-    db.prepare("DELETE FROM settings WHERE chave = ?").run(chave);
+    await dbRun("DELETE FROM settings WHERE chave = ?", chave);
   } else {
-    db.prepare(
-      "INSERT INTO settings (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor"
-    ).run(chave, valor);
+    await dbRun(
+      "INSERT INTO settings (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor",
+      chave,
+      valor
+    );
   }
 }
 
-export function getSenhaDescriptografada(): string | null {
-  const cripto = get("gestao_senha");
+export async function getSenhaDescriptografada(): Promise<string | null> {
+  const cripto = await get("gestao_senha");
   if (!cripto) return null;
   try {
     return descriptografar(cripto);
@@ -28,8 +28,8 @@ export function getSenhaDescriptografada(): string | null {
   }
 }
 
-export function setSenha(senha: string) {
-  set("gestao_senha", criptografar(senha));
+export async function setSenha(senha: string) {
+  await set("gestao_senha", criptografar(senha));
 }
 
 function normalizarBaseUrl(url: string): string {
@@ -41,11 +41,11 @@ function normalizarBaseUrl(url: string): string {
   }
 }
 
-export function getConfig() {
+export async function getConfig() {
   return {
-    usuario: get("gestao_usuario") || "",
-    senha: getSenhaDescriptografada() || "",
-    baseUrl: normalizarBaseUrl(get("gestao_base_url") || "https://gestao.chronomax.com.br"),
-    semanas: parseInt(get("gestao_semanas_a_buscar") || "100"),
+    usuario: (await get("gestao_usuario")) || "",
+    senha: (await getSenhaDescriptografada()) || "",
+    baseUrl: normalizarBaseUrl((await get("gestao_base_url")) || "https://gestao.chronomax.com.br"),
+    semanas: parseInt((await get("gestao_semanas_a_buscar")) || "100"),
   };
 }

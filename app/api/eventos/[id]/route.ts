@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/lib/db";
+import { dbRun, dbGet, dbAll, initDB } from "@/lib/db";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await initDB();
   const { id } = await params;
-  const evento = db.prepare("SELECT * FROM eventos WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  const evento = await dbGet<Record<string, unknown>>("SELECT * FROM eventos WHERE id = ?", id);
   if (!evento) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 
-  const tecnicos = db
-    .prepare(
-      `SELECT t.id, t.nome, t.telefone FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id WHERE et.evento_id = ?`
-    )
-    .all(id);
+  const tecnicos = await dbAll(
+    `SELECT t.id, t.nome, t.telefone FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id WHERE et.evento_id = ?`,
+    id
+  );
 
-  const produtos = db
-    .prepare(
-      `SELECT p.id, p.nome, ep.quantidade FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id WHERE ep.evento_id = ?`
-    )
-    .all(id);
+  const produtos = await dbAll(
+    `SELECT p.id, p.nome, ep.quantidade FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id WHERE ep.evento_id = ?`,
+    id
+  );
 
   return NextResponse.json({ ...evento, tecnicos, produtos });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await initDB();
   const { id } = await params;
   const body = await req.json();
 
@@ -54,20 +54,22 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (updates.length > 0) {
     updates.push("updated_at = CURRENT_TIMESTAMP");
     values.push(id);
-    db.prepare(`UPDATE eventos SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+    await dbRun(`UPDATE eventos SET ${updates.join(", ")} WHERE id = ?`, ...values);
   }
 
   if (Array.isArray(body.tecnicos)) {
-    db.prepare("DELETE FROM evento_tecnicos WHERE evento_id = ?").run(id);
-    const stmt = db.prepare("INSERT INTO evento_tecnicos (evento_id, tecnico_id) VALUES (?, ?)");
-    for (const tid of body.tecnicos) stmt.run(id, tid);
+    await dbRun("DELETE FROM evento_tecnicos WHERE evento_id = ?", id);
+    for (const tid of body.tecnicos) {
+      await dbRun("INSERT INTO evento_tecnicos (evento_id, tecnico_id) VALUES (?, ?)", id, tid);
+    }
   }
 
   if (Array.isArray(body.produtos)) {
-    db.prepare("DELETE FROM evento_produtos WHERE evento_id = ?").run(id);
-    const stmt = db.prepare("INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?)");
+    await dbRun("DELETE FROM evento_produtos WHERE evento_id = ?", id);
     for (const p of body.produtos) {
-      if (p.quantidade > 0) stmt.run(id, p.id, p.quantidade);
+      if (p.quantidade > 0) {
+        await dbRun("INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?)", id, p.id, p.quantidade);
+      }
     }
   }
 
@@ -75,7 +77,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await initDB();
   const { id } = await params;
-  db.prepare("DELETE FROM eventos WHERE id = ?").run(id);
+  await dbRun("DELETE FROM eventos WHERE id = ?", id);
   return NextResponse.json({ ok: true });
 }

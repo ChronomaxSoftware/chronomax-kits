@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { dbAll, initDB } from "@/lib/db";
 
 type EventoRow = {
   id: number;
@@ -26,23 +26,19 @@ type EventoRow = {
 };
 
 export async function GET() {
-  const eventos = db
-    .prepare(
-      `SELECT id, numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, data_entrega, hora_entrega, local_entrega, status, url_gestao, base1_ok, base_final_ok, base1_ok_em, base_final_ok_em, tem_kit, tipo_kit FROM eventos ORDER BY data ASC`
-    )
-    .all() as EventoRow[];
+  await initDB();
 
-  const tecnicosPorEvento = db
-    .prepare(
-      `SELECT et.evento_id, t.id, t.nome FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id`
-    )
-    .all() as { evento_id: number; id: number; nome: string }[];
+  const eventos = await dbAll<EventoRow>(
+    `SELECT id, numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, data_entrega, hora_entrega, local_entrega, status, url_gestao, base1_ok, base_final_ok, base1_ok_em, base_final_ok_em, tem_kit, tipo_kit FROM eventos ORDER BY data ASC`
+  );
 
-  const produtosPorEvento = db
-    .prepare(
-      `SELECT ep.evento_id, p.id, p.nome, ep.quantidade FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id`
-    )
-    .all() as { evento_id: number; id: number; nome: string; quantidade: number }[];
+  const tecnicosPorEvento = await dbAll<{ evento_id: number; id: number; nome: string }>(
+    `SELECT et.evento_id, t.id, t.nome FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id`
+  );
+
+  const produtosPorEvento = await dbAll<{ evento_id: number; id: number; nome: string; quantidade: number }>(
+    `SELECT ep.evento_id, p.id, p.nome, ep.quantidade FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id`
+  );
 
   const out = eventos.map((e) => ({
     ...e,

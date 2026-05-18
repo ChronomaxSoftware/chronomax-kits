@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import db from "@/lib/db";
+import { dbGet, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 
 export async function POST(req: NextRequest) {
+  await initDB();
   const { username, password } = await req.json();
   if (!username || !password) {
     return NextResponse.json({ error: "Usuário e senha obrigatórios" }, { status: 400 });
   }
 
-  const user = db
-    .prepare("SELECT id, username, password_hash, name FROM users WHERE username = ?")
-    .get(username) as { id: number; username: string; password_hash: string; name: string } | undefined;
+  const user = await dbGet<{ id: number; username: string; password_hash: string; name: string }>(
+    "SELECT id, username, password_hash, name FROM users WHERE username = ?",
+    username
+  );
 
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return NextResponse.json({ error: "Usuário ou senha incorretos" }, { status: 401 });

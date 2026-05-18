@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import db from "@/lib/db";
+import { dbRun, dbGet, dbAll, initDB } from "@/lib/db";
 import path from "path";
 import fs from "fs/promises";
 import { existsSync, mkdirSync } from "fs";
@@ -13,16 +13,16 @@ function uploadDir(eventoId: string | number): string {
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await initDB();
   const { id } = await params;
-  const rows = db
-    .prepare("SELECT id, evento_id, nome, descricao, imagem_path, ordem FROM evento_kits WHERE evento_id = ? ORDER BY ordem, id")
-    .all(id);
+  const rows = await dbAll("SELECT id, evento_id, nome, descricao, imagem_path, ordem FROM evento_kits WHERE evento_id = ? ORDER BY ordem, id", id);
   return NextResponse.json(rows);
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  await initDB();
   const { id } = await params;
-  const evento = db.prepare("SELECT id FROM eventos WHERE id = ?").get(id);
+  const evento = await dbGet("SELECT id FROM eventos WHERE id = ?", id);
   if (!evento) return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 });
 
   const form = await req.formData();
@@ -41,9 +41,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     imagemPath = `eventos/${id}/${filename}`;
   }
 
-  const r = db
-    .prepare("INSERT INTO evento_kits (evento_id, nome, descricao, imagem_path, ordem) VALUES (?, ?, ?, ?, ?)")
-    .run(id, nome, descricao, imagemPath, 0);
+  const r = await dbRun("INSERT INTO evento_kits (evento_id, nome, descricao, imagem_path, ordem) VALUES (?, ?, ?, ?, ?)",
+    id, nome, descricao, imagemPath, 0);
 
   return NextResponse.json({ id: r.lastInsertRowid });
 }

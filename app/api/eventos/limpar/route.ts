@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import { dbRun, initDB } from "@/lib/db";
 
 export async function POST() {
-  const r = db.prepare("DELETE FROM eventos").run();
+  await initDB();
+  const r = await dbRun("DELETE FROM eventos");
   return NextResponse.json({ ok: true, removidos: r.changes });
 }
