@@ -3,7 +3,7 @@ import { dbRun, dbGet, initDB } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { scrapeEquipe } from "@/lib/scraper-equipe";
 
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   await initDB();

@@ -4,7 +4,7 @@ import { getConfig } from "@/lib/config";
 import { scrapeGestao } from "@/lib/scraper";
 import { iniciarSync, setProgresso, finalizarSync } from "@/lib/sync-progress";
 
-export const maxDuration = 600;
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   await initDB();
