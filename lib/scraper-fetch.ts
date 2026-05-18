@@ -2,9 +2,11 @@
  * Substituto do scraper.ts (Playwright) usando chamadas diretas à API REST do Gestão.
  * Mantém a mesma interface (ScrapeResult, ScrapeOptions) para compatibilidade
  * com o sync/route.ts.
+ *
+ * Total de HTTP requests: 3 (login + proposals + bulk allocations)
  */
 
-import { GestaoAPI, GestaoProposal, GestaoAllocation } from "./gestao-api";
+import { GestaoAPI, GestaoProposal } from "./gestao-api";
 import type { EventoExtraido } from "./parser";
 
 export type ScrapeResult = {
@@ -26,9 +28,16 @@ export type ScrapeOptions = {
   onProgress?: (fase: string, porcentagem: number, atual?: number, total?: number) => void;
 };
 
+// ── Tipos do bulk ─────────────────────────────────────────────────────
+
+type BulkTechnician = { id: string; name: string; status: string; funcao: string | null };
+type BulkEventData = {
+  totalAllocated: number;
+  allTechnicians: BulkTechnician[];
+};
+
 // ── Helpers de mapeamento ─────────────────────────────────────────────
 
-/** Extrai UF de "Cidade - UF" ou retorna null */
 function parseCidadeUf(raw: string | null): { cidade: string | null; uf: string | null } {
   if (!raw) return { cidade: null, uf: null };
   const m = raw.match(/^(.+?)\s*-\s*([A-Z]{2})\s*$/);
@@ -36,7 +45,6 @@ function parseCidadeUf(raw: string | null): { cidade: string | null; uf: string 
   return { cidade: raw.trim(), uf: null };
 }
 
-/** Formata data ISO para DD/MM/YYYY */
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
   try {
@@ -51,31 +59,6 @@ function formatDate(iso: string | null): string | null {
   }
 }
 
-/**
- * Categoriza item pelo nome/category (mesma lógica do frontend categorization.js)
- */
-function categorizeItem(item: { name?: string; category?: string; assignedCategory?: string }): string {
-  const cat = (item.assignedCategory || item.category || "").toLowerCase();
-  if (cat.includes("entrega_kits") || cat.includes("entrega de kits") || cat.includes("entrega kits")) return "entrega_kits";
-  if (cat.includes("servicos_gorunking") || cat.includes("serviços_gorunking")) return "servicos_gorunking";
-  if (cat.includes("locacao_equipamentos") || cat.includes("locação de equipamentos")) return "locacao_equipamentos";
-
-  const name = (item.name || "").toLowerCase();
-  if ((name.includes("estação de entrega") || name.includes("estacao de entrega")) && name.includes("gorunking")) return "entrega_kits";
-  if (name.includes("entrega de kits via app gorunking") || name.includes("servico de entrega de kits via app gorunking")) return "entrega_kits";
-  if (name.includes("entrega") && (name.includes("kit") || name.includes("chip"))) return "entrega_kits";
-  if (name.includes("totem") && name.includes("kit")) return "locacao_equipamentos";
-  if (name.includes("totem") && name.includes("entrega")) return "locacao_equipamentos";
-  if (name.includes("notebook") && name.includes("entrega")) return "locacao_equipamentos";
-  if (name.includes("técnico") && name.includes("entrega")) return "entrega_kits";
-  if (name.includes("tecnico") && name.includes("entrega")) return "entrega_kits";
-  return "outros";
-}
-
-/**
- * Extrai quantidades de kit dos items da proposta.
- * Replica a lógica de buscarQuantidadeApos() do parser.ts, mas a partir do JSON.
- */
 function extrairDadosKit(items: GestaoProposal["items"]): {
   qtd_celulares: number;
   dias_entrega: number;
@@ -92,7 +75,6 @@ function extrairDadosKit(items: GestaoProposal["items"]): {
     const qty = item.quantity || 0;
     const unit = (item.unit || "").toLowerCase();
 
-    // Estação de Entrega de Kits via App GoRunKing → celulares (unidades)
     if (
       (name.includes("estação de entrega") || name.includes("estacao de entrega")) &&
       name.includes("gorunking")
@@ -104,26 +86,18 @@ function extrairDadosKit(items: GestaoProposal["items"]): {
       qtd_celulares += qty;
       continue;
     }
-
-    // Técnico Especializado para Entrega de Kits → dias
     if (
       (name.includes("técnico") || name.includes("tecnico")) &&
       name.includes("entrega") &&
       name.includes("kit")
     ) {
-      if (unit.includes("dia")) {
-        dias_entrega += qty;
-      }
+      if (unit.includes("dia")) dias_entrega += qty;
       continue;
     }
-
-    // Totem touchscreen para Entrega de Kits → totens
     if (name.includes("totem") && (name.includes("kit") || name.includes("entrega"))) {
       qtd_totens += qty;
       continue;
     }
-
-    // Locação de Notebook para Entrega de Kits → notebooks
     if (
       (name.includes("notebook") || name.includes("locação de notebook") || name.includes("locacao de notebook")) &&
       (name.includes("kit") || name.includes("entrega"))
@@ -136,65 +110,51 @@ function extrairDadosKit(items: GestaoProposal["items"]): {
   return { qtd_celulares, dias_entrega, qtd_totens, qtd_notebooks };
 }
 
-/**
- * Verifica se algum item é "Estação de Entrega de Kits via App GoRunKing"
- * (indica que a Chronomax fornece o sistema)
- */
 function temItemSistema(items: GestaoProposal["items"]): boolean {
   return (items || []).some((it) => {
     const name = (it.name || it.description || "").toLowerCase();
     return (
-      name.includes("estação de entrega") && name.includes("gorunking") ||
-      name.includes("estacao de entrega") && name.includes("gorunking")
+      (name.includes("estação de entrega") || name.includes("estacao de entrega")) &&
+      name.includes("gorunking")
     );
   });
 }
 
 /**
- * Mapeia uma Proposal + suas Allocations para EventoExtraido
+ * Mapeia Proposal + dados do bulk para EventoExtraido.
+ * Usa apenas os dados do bulk (nome, funcao) — sem CPF ou cache_ek detalhado.
+ * CPF e telefone vêm do sync-equipe separado.
  */
 function mapProposalToEvento(
   proposal: GestaoProposal,
-  allocations: GestaoAllocation[],
+  bulkData: BulkEventData | null,
 ): EventoExtraido & { url: string } {
   const { cidade, uf } = parseCidadeUf(proposal.eventCity);
   const kitData = extrairDadosKit(proposal.items);
 
-  // Mapeia técnicos a partir das alocações
-  const tecnicos_gestao = allocations
-    .filter((a) => a.status !== "cancelled")
-    .map((a) => {
-      // CPF prefixo: documento do supplier (ex: "123.456.789-00" → "123.456.789")
-      let cpf_prefixo: string | null = null;
-      if (a.technician?.document && a.technician.documentType === "cpf") {
-        const digits = a.technician.document.replace(/\D/g, "");
-        if (digits.length >= 9) {
-          cpf_prefixo = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}`;
-        }
-      }
+  // Técnicos do bulk (sem CPF/cache detalhado — vem do sync-equipe)
+  const tecnicos_gestao = (bulkData?.allTechnicians || [])
+    .filter((t) => t.status !== "cancelled")
+    .map((t) => ({
+      nome: t.name || "Desconhecido",
+      funcao: t.funcao ? t.funcao.toLowerCase() : null,
+      cpf_prefixo: null as string | null,
+      cache_ek: 0,
+      is_entrega_kit: false, // Determinado pelos items, não pelo técnico individual
+    }));
 
-      const cache_ek = Number(a.kitDeliveryAmount) || 0;
-
-      return {
-        nome: a.technicianName || a.technician?.companyName || "Desconhecido",
-        funcao: a.funcao ? a.funcao.toLowerCase() : null,
-        cpf_prefixo,
-        cache_ek,
-        is_entrega_kit: (a.entregaKitsQty || 0) > 0 || cache_ek > 0,
-      };
-    });
-
-  // Itens brutos para o book
   const itens_brutos = (proposal.items || []).map((it) => ({
     nome: (it.name || it.description || "Item").slice(0, 200),
     quantidade: it.quantity || 0,
     unidade: (it.unit || "unidade").toLowerCase(),
   }));
 
-  // Classifica tipo de kit
+  // tipo_kit baseado nos items (mais confiável que cache_ek individual)
   let tipo_kit: "entrega" | "sistema" | null = null;
-  if (tecnicos_gestao.some((t) => t.is_entrega_kit)) {
+  if (kitData.dias_entrega > 0) {
     tipo_kit = "entrega";
+    // Marca todos técnicos como entrega de kit se o evento tem dias_entrega
+    tecnicos_gestao.forEach((t) => { t.is_entrega_kit = true; });
   } else if (temItemSistema(proposal.items)) {
     tipo_kit = "sistema";
   }
@@ -218,14 +178,14 @@ function mapProposalToEvento(
     dias_entrega: kitData.dias_entrega,
     qtd_totens: kitData.qtd_totens,
     qtd_notebooks: kitData.qtd_notebooks,
-    local_prova: null, // Não disponível via API (campo de formulário do frontend antigo)
-    url_site_oficial: null, // Idem
+    local_prova: null,
+    url_site_oficial: null,
     tipo_kit,
     tecnicos_gestao,
     itens_brutos,
     tem_entrega_kit,
     texto_extraido: `[via API] ${proposal.eventName || ""} - ${proposal.number || ""}`,
-    url: `${proposal.id}`, // ID da proposta como referência
+    url: `${proposal.id}`,
   };
 }
 
@@ -238,77 +198,47 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
   try {
     log.push("Iniciando sync via API REST (sem Playwright)");
 
-    // 1. Login
+    // 1. Login (1 request)
     progress("Fazendo login na API do Gestão", 5);
     const api = new GestaoAPI(opts.baseUrl);
     const loginRes = await api.login(opts.usuario, opts.senha);
     log.push(`Login OK: ${loginRes.user.name} (${loginRes.user.email})`);
 
-    // 2. Buscar propostas aprovadas/em negociação
-    progress("Buscando propostas", 10);
+    // 2. Buscar propostas (1 request)
+    progress("Buscando propostas", 15);
     const proposalsRes = await api.getProposals();
     const allProposals = proposalsRes.proposals || [];
-    log.push(`Total de propostas retornadas pela API: ${allProposals.length}`);
+    log.push(`Total de propostas: ${allProposals.length}`);
 
-    // Filtrar apenas aprovadas e em_negociacao (mesmo filtro do frontend Squads)
     const proposals = allProposals.filter(
       (p) => p.status === "aprovada" || p.status === "em_negociacao"
     );
     log.push(`Propostas aprovadas/em_negociacao: ${proposals.length}`);
-    progress(`Encontradas ${proposals.length} propostas ativas`, 15, 0, proposals.length);
 
-    // 3. Buscar alocações — 2 passos: bulk resumo → detalhado só dos que têm técnicos
-    progress("Buscando alocações de técnicos", 20);
+    // 3. Buscar alocações em bulk (1 request)
+    progress("Buscando alocações de técnicos", 40);
     const eventIds = proposals.map((p) => p.id);
-    let allAllocations: Record<string, GestaoAllocation[]> = {};
+    let bulkData: Record<string, BulkEventData> = {};
 
     if (eventIds.length > 0) {
-      // Passo 1: bulk request pra saber quais eventos têm técnicos alocados (1 request)
-      let eventsWithAllocations: string[] = [];
       try {
         const bulkRes = await api.getBulkAllocations(eventIds, "proposal");
-        eventsWithAllocations = Object.entries(bulkRes.data || {})
-          .filter(([, v]) => v.totalAllocated > 0)
-          .map(([eid]) => eid);
-        log.push(`Bulk: ${eventsWithAllocations.length} eventos com técnicos alocados de ${eventIds.length} total`);
+        bulkData = (bulkRes.data || {}) as Record<string, BulkEventData>;
+        const withTech = Object.values(bulkData).filter((v) => v.totalAllocated > 0).length;
+        log.push(`Bulk OK: ${withTech} eventos com técnicos de ${eventIds.length} total`);
       } catch (e) {
-        log.push(`⚠️ Bulk falhou, buscando detalhado de todos: ${e instanceof Error ? e.message : e}`);
-        eventsWithAllocations = eventIds;
-      }
-
-      // Passo 2: buscar detalhado só dos que têm alocações (inclui cachê E.K)
-      if (eventsWithAllocations.length > 0) {
-        progress(`Buscando detalhes de ${eventsWithAllocations.length} eventos com técnicos`, 30);
-        const results = await Promise.all(
-          eventsWithAllocations.map(async (eid) => {
-            try {
-              const res = await api.getEventAllocations(eid, "proposal");
-              return { eid, allocations: res.data?.allocations || [] };
-            } catch {
-              return { eid, allocations: [] as GestaoAllocation[] };
-            }
-          })
-        );
-        for (const r of results) {
-          allAllocations[r.eid] = r.allocations;
-        }
-        log.push(`Alocações detalhadas carregadas: ${results.length} eventos`);
+        log.push(`⚠️ Bulk falhou (técnicos não carregados): ${e instanceof Error ? e.message : e}`);
       }
     }
 
-    // 4. Mapear para EventoExtraido
-    progress("Processando eventos", 75);
+    // 4. Mapear para EventoExtraido (CPU only, sem I/O)
+    progress("Processando eventos", 70);
     const eventos: (EventoExtraido & { url: string })[] = [];
 
-    for (let i = 0; i < proposals.length; i++) {
-      const p = proposals[i];
-      const allocations = allAllocations[p.id] || [];
+    for (const p of proposals) {
       try {
-        const ev = mapProposalToEvento(p, allocations);
+        const ev = mapProposalToEvento(p, bulkData[p.id] || null);
         eventos.push(ev);
-        log.push(
-          `✓ #${ev.numero || "?"} ${(ev.nome || "?").slice(0, 50)} | cel:${ev.qtd_celulares} dias:${ev.dias_entrega} tot:${ev.qtd_totens} | KIT:${ev.tem_entrega_kit ? "✓" : "✗"}`
-        );
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         log.push(`❌ Erro ao mapear proposta ${p.number}: ${msg}`);
@@ -317,7 +247,6 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
 
     const eventosKit = eventos.filter((e) => e.tem_entrega_kit);
     log.push(`Total: ${eventos.length} eventos, ${eventosKit.length} com kit`);
-
     progress("Sync concluído", 90);
 
     return {
