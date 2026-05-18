@@ -257,35 +257,43 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
     log.push(`Propostas aprovadas/em_negociacao: ${proposals.length}`);
     progress(`Encontradas ${proposals.length} propostas ativas`, 15, 0, proposals.length);
 
-    // 3. Buscar alocações em bulk
+    // 3. Buscar alocações — 2 passos: bulk resumo → detalhado só dos que têm técnicos
     progress("Buscando alocações de técnicos", 20);
     const eventIds = proposals.map((p) => p.id);
     let allAllocations: Record<string, GestaoAllocation[]> = {};
 
     if (eventIds.length > 0) {
-      // Buscar alocações detalhadas para cada evento (inclui dados de cachê E.K)
-      // O endpoint bulk retorna dados resumidos, precisamos do detalhado
-      const batchSize = 10;
-      for (let i = 0; i < eventIds.length; i += batchSize) {
-        const batch = eventIds.slice(i, i + batchSize);
+      // Passo 1: bulk request pra saber quais eventos têm técnicos alocados (1 request)
+      let eventsWithAllocations: string[] = [];
+      try {
+        const bulkRes = await api.getBulkAllocations(eventIds, "proposal");
+        eventsWithAllocations = Object.entries(bulkRes.data || {})
+          .filter(([, v]) => v.totalAllocated > 0)
+          .map(([eid]) => eid);
+        log.push(`Bulk: ${eventsWithAllocations.length} eventos com técnicos alocados de ${eventIds.length} total`);
+      } catch (e) {
+        log.push(`⚠️ Bulk falhou, buscando detalhado de todos: ${e instanceof Error ? e.message : e}`);
+        eventsWithAllocations = eventIds;
+      }
+
+      // Passo 2: buscar detalhado só dos que têm alocações (inclui cachê E.K)
+      if (eventsWithAllocations.length > 0) {
+        progress(`Buscando detalhes de ${eventsWithAllocations.length} eventos com técnicos`, 30);
         const results = await Promise.all(
-          batch.map(async (eid) => {
+          eventsWithAllocations.map(async (eid) => {
             try {
               const res = await api.getEventAllocations(eid, "proposal");
               return { eid, allocations: res.data?.allocations || [] };
             } catch {
-              log.push(`⚠️ Falha ao buscar alocações do evento ${eid}`);
-              return { eid, allocations: [] };
+              return { eid, allocations: [] as GestaoAllocation[] };
             }
           })
         );
         for (const r of results) {
           allAllocations[r.eid] = r.allocations;
         }
-        const pct = 20 + Math.round(((i + batch.length) / eventIds.length) * 50);
-        progress(`Buscando alocações ${Math.min(i + batchSize, eventIds.length)}/${eventIds.length}`, pct, i + batch.length, eventIds.length);
+        log.push(`Alocações detalhadas carregadas: ${results.length} eventos`);
       }
-      log.push(`Alocações carregadas para ${Object.keys(allAllocations).length} eventos`);
     }
 
     // 4. Mapear para EventoExtraido
