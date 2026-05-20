@@ -267,11 +267,32 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
     // 4. Mapear para EventoExtraido (CPU only, sem I/O)
     progress("Processando eventos", 80);
     const eventos: (EventoExtraido & { url: string })[] = [];
+    let logouChaves = false;
+    let eventosDetalhados = 0;
 
     for (const p of proposals) {
       try {
-        const ev = mapProposalToEvento(p, allAllocations[p.id] || []);
+        const allocs = allAllocations[p.id] || [];
+        const ev = mapProposalToEvento(p, allocs);
         eventos.push(ev);
+
+        // ── Diagnóstico TEMPORÁRIO: conferir E.K por técnico (remover após validar) ──
+        if (allocs.length > 0) {
+          if (!logouChaves) {
+            log.push(`🔎 Campos da alocação: ${Object.keys(allocs[0]).join(", ")}`);
+            logouChaves = true;
+          }
+          if (ev.tem_entrega_kit && eventosDetalhados < 15) {
+            eventosDetalhados++;
+            const kitCount = ev.tecnicos_gestao.filter((t) => t.is_entrega_kit).length;
+            log.push(`🔎 #${ev.numero || "?"} ${(ev.nome || "").slice(0, 40)} — ${allocs.length} alocações, ${kitCount} de kit:`);
+            for (const a of allocs) {
+              log.push(
+                `      - ${a.technicianName || a.technician?.companyName || "?"} | funcao:${a.funcao ?? "-"} | entregaKitsQty:${a.entregaKitsQty} | kitDeliveryAmount:${a.kitDeliveryAmount} | status:${a.status}`
+              );
+            }
+          }
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         log.push(`❌ Erro ao mapear proposta ${p.number}: ${msg}`);
