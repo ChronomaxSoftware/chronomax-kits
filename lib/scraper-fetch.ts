@@ -3,10 +3,14 @@
  * Mantém a mesma interface (ScrapeResult, ScrapeOptions) para compatibilidade
  * com o sync/route.ts.
  *
- * Total de HTTP requests: 3 (login + proposals + bulk allocations)
+ * Fluxo de requests:
+ *   1 login + 1 proposals + 1 bulk (filtra eventos com equipe)
+ *   + N alocações detalhadas (só pros eventos com equipe, em paralelo por lotes).
+ * As alocações detalhadas trazem entregaKitsQty/CPF/cachê por técnico — necessário
+ * pra marcar is_entrega_kit individualmente (só técnico de entrega de kit, não toda a equipe).
  */
 
-import { GestaoAPI, GestaoProposal } from "./gestao-api";
+import { GestaoAPI, GestaoProposal, GestaoAllocation } from "./gestao-api";
 import type { EventoExtraido } from "./parser";
 
 export type ScrapeResult = {
@@ -26,14 +30,6 @@ export type ScrapeOptions = {
   visivel?: boolean;
   debug?: boolean;
   onProgress?: (fase: string, porcentagem: number, atual?: number, total?: number) => void;
-};
-
-// ── Tipos do bulk ─────────────────────────────────────────────────────
-
-type BulkTechnician = { id: string; name: string; status: string; funcao: string | null };
-type BulkEventData = {
-  totalAllocated: number;
-  allTechnicians: BulkTechnician[];
 };
 
 // ── Helpers de mapeamento ─────────────────────────────────────────────
@@ -121,27 +117,40 @@ function temItemSistema(items: GestaoProposal["items"]): boolean {
 }
 
 /**
- * Mapeia Proposal + dados do bulk para EventoExtraido.
- * Usa apenas os dados do bulk (nome, funcao) — sem CPF ou cache_ek detalhado.
- * CPF e telefone vêm do sync-equipe separado.
+ * Mapeia Proposal + alocações detalhadas para EventoExtraido.
+ * is_entrega_kit é decidido POR TÉCNICO (entregaKitsQty > 0 ou cachê de kit > 0),
+ * não pelo evento — assim só os técnicos da entrega de kit entram em evento_tecnicos.
  */
 function mapProposalToEvento(
   proposal: GestaoProposal,
-  bulkData: BulkEventData | null,
+  allocations: GestaoAllocation[],
 ): EventoExtraido & { url: string } {
   const { cidade, uf } = parseCidadeUf(proposal.eventCity);
   const kitData = extrairDadosKit(proposal.items);
 
-  // Técnicos do bulk (sem CPF/cache detalhado — vem do sync-equipe)
-  const tecnicos_gestao = (bulkData?.allTechnicians || [])
-    .filter((t) => t.status !== "cancelled")
-    .map((t) => ({
-      nome: t.name || "Desconhecido",
-      funcao: t.funcao ? t.funcao.toLowerCase() : null,
-      cpf_prefixo: null as string | null,
-      cache_ek: 0,
-      is_entrega_kit: false, // Determinado pelos items, não pelo técnico individual
-    }));
+  // Técnicos a partir das alocações detalhadas (inclui E.K, CPF e cachê)
+  const tecnicos_gestao = allocations
+    .filter((a) => a.status !== "cancelled")
+    .map((a) => {
+      // CPF prefixo: documento do supplier (ex: "123.456.789-00" → "123.456.789")
+      let cpf_prefixo: string | null = null;
+      if (a.technician?.document && a.technician.documentType === "cpf") {
+        const digits = a.technician.document.replace(/\D/g, "");
+        if (digits.length >= 9) {
+          cpf_prefixo = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}`;
+        }
+      }
+
+      const cache_ek = Number(a.kitDeliveryAmount) || 0;
+
+      return {
+        nome: a.technicianName || a.technician?.companyName || "Desconhecido",
+        funcao: a.funcao ? a.funcao.toLowerCase() : null,
+        cpf_prefixo,
+        cache_ek,
+        is_entrega_kit: (a.entregaKitsQty || 0) > 0 || cache_ek > 0,
+      };
+    });
 
   const itens_brutos = (proposal.items || []).map((it) => ({
     nome: (it.name || it.description || "Item").slice(0, 200),
@@ -149,12 +158,10 @@ function mapProposalToEvento(
     unidade: (it.unit || "unidade").toLowerCase(),
   }));
 
-  // tipo_kit baseado nos items (mais confiável que cache_ek individual)
+  // tipo_kit: 'entrega' se algum técnico tem E.K, senão 'sistema' se tem item GoRunKing
   let tipo_kit: "entrega" | "sistema" | null = null;
-  if (kitData.dias_entrega > 0) {
+  if (tecnicos_gestao.some((t) => t.is_entrega_kit)) {
     tipo_kit = "entrega";
-    // Marca todos técnicos como entrega de kit se o evento tem dias_entrega
-    tecnicos_gestao.forEach((t) => { t.is_entrega_kit = true; });
   } else if (temItemSistema(proposal.items)) {
     tipo_kit = "sistema";
   }
@@ -215,29 +222,55 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
     );
     log.push(`Propostas aprovadas/em_negociacao: ${proposals.length}`);
 
-    // 3. Buscar alocações em bulk (1 request)
-    progress("Buscando alocações de técnicos", 40);
+    // 3. Buscar alocações: bulk (1 request) pra saber quais eventos têm equipe,
+    //    depois alocações detalhadas só pra esses (em paralelo, por lotes).
+    progress("Buscando alocações de técnicos", 25);
     const eventIds = proposals.map((p) => p.id);
-    let bulkData: Record<string, BulkEventData> = {};
+    const allAllocations: Record<string, GestaoAllocation[]> = {};
 
     if (eventIds.length > 0) {
+      // 3a. Bulk → filtra eventos com técnico alocado (evita N requests desnecessários)
+      let eventosComEquipe: string[] = eventIds;
       try {
         const bulkRes = await api.getBulkAllocations(eventIds, "proposal");
-        bulkData = (bulkRes.data || {}) as Record<string, BulkEventData>;
-        const withTech = Object.values(bulkData).filter((v) => v.totalAllocated > 0).length;
-        log.push(`Bulk OK: ${withTech} eventos com técnicos de ${eventIds.length} total`);
+        const bulkData = bulkRes.data || {};
+        eventosComEquipe = eventIds.filter((id) => (bulkData[id]?.totalAllocated || 0) > 0);
+        log.push(`Bulk OK: ${eventosComEquipe.length} eventos com equipe de ${eventIds.length} total`);
       } catch (e) {
-        log.push(`⚠️ Bulk falhou (técnicos não carregados): ${e instanceof Error ? e.message : e}`);
+        log.push(`⚠️ Bulk falhou, buscando alocações de todos os eventos: ${e instanceof Error ? e.message : e}`);
       }
+
+      // 3b. Alocações detalhadas (com entregaKitsQty/CPF/cachê) só pros eventos com equipe
+      const batchSize = 15;
+      const total = eventosComEquipe.length;
+      for (let i = 0; i < total; i += batchSize) {
+        const batch = eventosComEquipe.slice(i, i + batchSize);
+        const results = await Promise.all(
+          batch.map(async (eid) => {
+            try {
+              const res = await api.getEventAllocations(eid, "proposal");
+              return { eid, allocations: res.data?.allocations || [] };
+            } catch {
+              log.push(`⚠️ Falha ao buscar alocações do evento ${eid}`);
+              return { eid, allocations: [] as GestaoAllocation[] };
+            }
+          })
+        );
+        for (const r of results) allAllocations[r.eid] = r.allocations;
+        const feito = Math.min(i + batchSize, total);
+        const pct = 25 + Math.round((feito / Math.max(total, 1)) * 50);
+        progress(`Buscando alocações ${feito}/${total}`, pct, feito, total);
+      }
+      log.push(`Alocações detalhadas carregadas para ${Object.keys(allAllocations).length} eventos`);
     }
 
     // 4. Mapear para EventoExtraido (CPU only, sem I/O)
-    progress("Processando eventos", 70);
+    progress("Processando eventos", 80);
     const eventos: (EventoExtraido & { url: string })[] = [];
 
     for (const p of proposals) {
       try {
-        const ev = mapProposalToEvento(p, bulkData[p.id] || null);
+        const ev = mapProposalToEvento(p, allAllocations[p.id] || []);
         eventos.push(ev);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
