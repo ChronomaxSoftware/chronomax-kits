@@ -12,13 +12,25 @@ export async function proxy(req: NextRequest) {
 
   if (isLoginPath || isApiAuth) {
     if (isLoginPath && session.isLoggedIn) {
-      return NextResponse.redirect(new URL("/", req.url));
+      const dest = session.role === "tecnico" ? "/portal" : "/";
+      return NextResponse.redirect(new URL(dest, req.url));
     }
     return res;
   }
 
   if (!session.isLoggedIn) {
     return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  // Técnico acessa o portal (inclui /portal/staff), as APIs do portal e as APIs do staff
+  if (session.role === "tecnico") {
+    const permitido =
+      pathname.startsWith("/portal") ||
+      pathname.startsWith("/api/portal") ||
+      pathname.startsWith("/api/staff");
+    if (!permitido) {
+      return NextResponse.redirect(new URL("/portal", req.url));
+    }
   }
 
   return res;

@@ -124,6 +124,7 @@ function Tabela({
   toggle: (id: number) => void;
 }) {
   return (
+    <div className="overflow-x-auto">
     <table className="w-full">
       <thead className="bg-slate-900 text-left text-xs text-slate-400 uppercase">
         <tr>
@@ -162,5 +163,6 @@ function Tabela({
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
