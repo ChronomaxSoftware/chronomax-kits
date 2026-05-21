@@ -40,7 +40,7 @@ type Evento = {
   links_evento: string | null;
   usuarios_evento: string | null;
   tecnicos: { id: number; nome: string; telefone: string | null }[];
-  produtos: { id: number; nome: string; quantidade: number }[];
+  produtos: { id: number; nome: string; quantidade: number; recebido?: number; qtd_recebida?: number | null; recebido_em?: string | null }[];
 };
 
 type Tecnico = { id: number; nome: string };
@@ -635,6 +635,28 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 produtos no total
               </li>
             </ul>
+          </Card>
+
+          <Card titulo="📦 Recebimento do material (técnico)">
+            {evento.produtos.length === 0 ? (
+              <p className="text-sm text-slate-400">Nenhum material atribuído a este evento.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {evento.produtos.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-2">
+                    <span className="text-slate-200">{p.nome}</span>
+                    {p.recebido ? (
+                      <span className="text-green-400 text-xs whitespace-nowrap">
+                        ✓ {p.qtd_recebida ?? p.quantidade}/{p.quantidade}
+                        {p.recebido_em ? ` · ${new Date(p.recebido_em).toLocaleDateString("pt-BR")}` : ""}
+                      </span>
+                    ) : (
+                      <span className="text-slate-500 text-xs">pendente</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </div>
       </div>

@@ -210,6 +210,56 @@ CREATE TABLE IF NOT EXISTS evento_equipe_gestao (
   FOREIGN KEY (evento_id) REFERENCES eventos(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_evento_equipe_gestao_evento_id ON evento_equipe_gestao(evento_id);
+
+CREATE TABLE IF NOT EXISTS staff_devices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uuid TEXT UNIQUE NOT NULL,
+  secure_token TEXT NOT NULL,
+  nome TEXT NOT NULL,
+  patrimonio TEXT,
+  modelo TEXT,
+  telefone TEXT,
+  imei TEXT,
+  observacoes TEXT,
+  status TEXT NOT NULL DEFAULT 'disponivel',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_devices_uuid ON staff_devices(uuid);
+
+CREATE TABLE IF NOT EXISTS staff_assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER,
+  device_id INTEGER NOT NULL,
+  colaborador TEXT NOT NULL,
+  funcao TEXT,
+  observacao TEXT,
+  inicio TEXT DEFAULT CURRENT_TIMESTAMP,
+  fim TEXT,
+  tempo_total INTEGER,
+  created_by TEXT,
+  ip TEXT,
+  navegador TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (event_id) REFERENCES eventos(id) ON DELETE SET NULL,
+  FOREIGN KEY (device_id) REFERENCES staff_devices(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_staff_assignments_device ON staff_assignments(device_id);
+CREATE INDEX IF NOT EXISTS idx_staff_assignments_abertos ON staff_assignments(device_id, fim);
+CREATE INDEX IF NOT EXISTS idx_staff_assignments_event ON staff_assignments(event_id);
+
+CREATE TABLE IF NOT EXISTS staff_audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  usuario TEXT,
+  acao TEXT NOT NULL,
+  detalhes TEXT,
+  ip TEXT,
+  navegador TEXT,
+  data_hora TEXT DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
   `);
 
   // ── Migrations (ALTER TABLE) ──
@@ -249,6 +299,12 @@ CREATE INDEX IF NOT EXISTS idx_evento_equipe_gestao_evento_id ON evento_equipe_g
     ["eventos", "tipo_kit", "ALTER TABLE eventos ADD COLUMN tipo_kit TEXT"],
     ["evento_equipe_gestao", "is_entrega_kit", "ALTER TABLE evento_equipe_gestao ADD COLUMN is_entrega_kit INTEGER DEFAULT 0"],
     ["evento_equipe_gestao", "cache_ek", "ALTER TABLE evento_equipe_gestao ADD COLUMN cache_ek INTEGER DEFAULT 0"],
+    // Login do técnico (portal) — senha_hash; login tem índice único criado abaixo
+    ["tecnicos", "senha_hash", "ALTER TABLE tecnicos ADD COLUMN senha_hash TEXT"],
+    // Confirmação de recebimento de material pelo técnico (por item)
+    ["evento_produtos", "recebido", "ALTER TABLE evento_produtos ADD COLUMN recebido INTEGER DEFAULT 0"],
+    ["evento_produtos", "qtd_recebida", "ALTER TABLE evento_produtos ADD COLUMN qtd_recebida INTEGER"],
+    ["evento_produtos", "recebido_em", "ALTER TABLE evento_produtos ADD COLUMN recebido_em TEXT"],
   ];
 
   // tem_kit precisa de backfill especial
@@ -269,6 +325,11 @@ CREATE INDEX IF NOT EXISTS idx_evento_equipe_gestao_evento_id ON evento_equipe_g
   }
   if (!(await colExiste("tecnicos", "ultima_sync_gestao"))) {
     await dbRun("ALTER TABLE tecnicos ADD COLUMN ultima_sync_gestao TEXT");
+  }
+  if (!(await colExiste("tecnicos", "login"))) {
+    await dbRun("ALTER TABLE tecnicos ADD COLUMN login TEXT");
+    // NULLs são distintos no SQLite, então técnicos sem login não conflitam
+    await dbRun("CREATE UNIQUE INDEX IF NOT EXISTS idx_tecnicos_login ON tecnicos(login)");
   }
 
   for (const [tab, col, sql] of migrations) {

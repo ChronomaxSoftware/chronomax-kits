@@ -13,7 +13,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   );
 
   const produtos = await dbAll(
-    `SELECT p.id, p.nome, ep.quantidade FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id WHERE ep.evento_id = ?`,
+    `SELECT p.id, p.nome, ep.quantidade, ep.recebido, ep.qtd_recebida, ep.recebido_em
+     FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id WHERE ep.evento_id = ?`,
     id
   );
 
@@ -65,10 +66,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   if (Array.isArray(body.produtos)) {
-    await dbRun("DELETE FROM evento_produtos WHERE evento_id = ?", id);
+    // Preserva a confirmação de recebimento: remove só os produtos que saíram da lista
+    // e faz upsert dos demais atualizando apenas a quantidade.
+    const ids = body.produtos
+      .filter((p: { quantidade: number }) => p.quantidade > 0)
+      .map((p: { id: number }) => p.id);
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => "?").join(",");
+      await dbRun(
+        `DELETE FROM evento_produtos WHERE evento_id = ? AND produto_id NOT IN (${placeholders})`,
+        id,
+        ...ids
+      );
+    } else {
+      await dbRun("DELETE FROM evento_produtos WHERE evento_id = ?", id);
+    }
     for (const p of body.produtos) {
       if (p.quantidade > 0) {
-        await dbRun("INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?)", id, p.id, p.quantidade);
+        await dbRun(
+          `INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?)
+           ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = excluded.quantidade`,
+          id,
+          p.id,
+          p.quantidade
+        );
       }
     }
   }

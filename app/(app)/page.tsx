@@ -299,25 +299,27 @@ export default function HomePage() {
       <DiagnosticoBox diagnostico={diagnostico} />
 
 
-      <div className="bg-slate-800 rounded-xl p-4 mb-6 flex items-center justify-between">
+      <div className="bg-slate-800 rounded-xl p-3 sm:p-4 mb-6 flex items-center justify-between gap-2">
         <button
           onClick={semanaAnterior}
-          className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm"
+          className="bg-slate-700 hover:bg-slate-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm shrink-0"
         >
-          ← Semana anterior
+          <span className="sm:hidden">←</span>
+          <span className="hidden sm:inline">← Semana anterior</span>
         </button>
-        <div className="text-center">
-          <p className="text-sm text-slate-400">Semana</p>
-          <p className="text-lg font-bold">
+        <div className="text-center min-w-0">
+          <p className="text-xs sm:text-sm text-slate-400">Semana</p>
+          <p className="text-base sm:text-lg font-bold whitespace-nowrap">
             {formatBR(semanaAtual)} - {formatBR(fim)}
           </p>
           <p className="text-xs text-slate-500">{eventosDaSemana.length} evento(s)</p>
         </div>
         <button
           onClick={proximaSemana}
-          className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm"
+          className="bg-slate-700 hover:bg-slate-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm shrink-0"
         >
-          Próxima semana →
+          <span className="sm:hidden">→</span>
+          <span className="hidden sm:inline">Próxima semana →</span>
         </button>
       </div>
 

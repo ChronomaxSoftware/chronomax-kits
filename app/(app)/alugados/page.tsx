@@ -216,7 +216,8 @@ export default function AlugadosPage() {
         {lista.length === 0 ? (
           <p className="p-6 text-center text-slate-400">Nenhum equipamento alugado cadastrado</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-slate-900 text-left text-xs text-slate-400 uppercase">
               <tr>
                 <th className="px-4 py-3">Tipo</th>
@@ -259,6 +260,7 @@ export default function AlugadosPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
