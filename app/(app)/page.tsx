@@ -30,7 +30,7 @@ type Evento = {
   base_final_ok_em: string | null;
   tem_kit: number;
   tipo_kit: "entrega" | "sistema" | null;
-  tecnicos: { id: number; nome: string }[];
+  tecnicos: { id: number; nome: string; funcao?: string | null }[];
   produtos: { id: number; nome: string; quantidade: number }[];
 };
 
@@ -769,6 +769,7 @@ function CardEvento({ evento, onAtualizar }: { evento: Evento; onAtualizar: (e: 
             {evento.tecnicos.map((t) => (
               <span key={t.id} className="text-xs bg-purple-900/50 text-purple-200 px-2 py-0.5 rounded">
                 {t.nome}
+                {t.funcao ? ` · ${t.funcao}` : ""}
               </span>
             ))}
           </div>

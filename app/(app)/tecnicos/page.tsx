@@ -21,7 +21,8 @@ export default function TecnicosPage() {
   const [erro, setErro] = useState("");
 
   async function carregar() {
-    const r = await fetch("/api/tecnicos");
+    // tela de gestão precisa ver inativos (pra reativar/editar)
+    const r = await fetch("/api/tecnicos?incluirInativos=1");
     setLista(await r.json());
   }
 
