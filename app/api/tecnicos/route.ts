@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { dbAll, dbRun, initDB } from "@/lib/db";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   await initDB();
+  // Por padrão só técnicos ativos (seletores/atribuição); ?incluirInativos=1 para a tela de gestão.
+  const incluirInativos = req.nextUrl.searchParams.get("incluirInativos") === "1";
   const rows = await dbAll(
     `SELECT id, nome, telefone, ativo, login,
             (senha_hash IS NOT NULL AND senha_hash != '') AS tem_senha
-     FROM tecnicos ORDER BY nome`
+     FROM tecnicos ${incluirInativos ? "" : "WHERE ativo = 1"} ORDER BY nome`
   );
   return NextResponse.json(rows);
 }

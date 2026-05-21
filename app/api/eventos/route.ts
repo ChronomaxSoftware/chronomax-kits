@@ -35,8 +35,17 @@ export async function GET() {
     `SELECT id, numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, data_entrega, hora_entrega, local_entrega, status, url_gestao, base1_ok, base_final_ok, base1_ok_em, base_final_ok_em, tem_kit, tipo_kit FROM eventos`
   );
 
-  const tecnicosPorEvento = await dbAll<{ evento_id: number; id: number; nome: string }>(
-    `SELECT et.evento_id, t.id, t.nome FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id`
+  // Só técnicos ativos; inclui função e data/hora da atribuição
+  const tecnicosPorEvento = await dbAll<{
+    evento_id: number;
+    id: number;
+    nome: string;
+    funcao: string | null;
+    atribuido_em: string | null;
+  }>(
+    `SELECT et.evento_id, t.id, t.nome, et.funcao, et.atribuido_em
+     FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id
+     WHERE t.ativo = 1`
   );
 
   const produtosPorEvento = await dbAll<{ evento_id: number; id: number; nome: string; quantidade: number }>(
@@ -45,7 +54,9 @@ export async function GET() {
 
   const out = eventos.map((e) => ({
     ...e,
-    tecnicos: tecnicosPorEvento.filter((t) => t.evento_id === e.id).map(({ id, nome }) => ({ id, nome })),
+    tecnicos: tecnicosPorEvento
+      .filter((t) => t.evento_id === e.id)
+      .map(({ id, nome, funcao, atribuido_em }) => ({ id, nome, funcao, atribuido_em })),
     produtos: produtosPorEvento
       .filter((p) => p.evento_id === e.id)
       .map(({ id, nome, quantidade }) => ({ id, nome, quantidade })),
