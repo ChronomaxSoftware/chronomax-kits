@@ -12,8 +12,9 @@ export async function GET() {
   const devices = await dbAll(
     "SELECT id, nome, patrimonio, status FROM staff_devices ORDER BY nome"
   );
+  // Sem limite: o dropdown precisa de todos os eventos disponíveis.
   const eventos = await dbAll(
-    "SELECT id, numero, nome, data FROM eventos ORDER BY data DESC LIMIT 500"
+    "SELECT id, numero, nome, data FROM eventos ORDER BY id DESC"
   );
 
   return NextResponse.json({ devices, eventos, funcoes: FUNCOES_STAFF });

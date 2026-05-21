@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { dbAll, initDB } from "@/lib/db";
+import { parseDataBR } from "@/lib/semana";
 
 type EventoRow = {
   id: number;
@@ -28,8 +29,10 @@ type EventoRow = {
 export async function GET() {
   await initDB();
 
+  // Sem limite: retorna TODOS os eventos. A ordenação por data é feita em JS
+  // porque `data` é texto "dd/mm/yyyy" (ORDER BY no SQL ordenaria alfabeticamente).
   const eventos = await dbAll<EventoRow>(
-    `SELECT id, numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, data_entrega, hora_entrega, local_entrega, status, url_gestao, base1_ok, base_final_ok, base1_ok_em, base_final_ok_em, tem_kit, tipo_kit FROM eventos ORDER BY data ASC`
+    `SELECT id, numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, data_entrega, hora_entrega, local_entrega, status, url_gestao, base1_ok, base_final_ok, base1_ok_em, base_final_ok_em, tem_kit, tipo_kit FROM eventos`
   );
 
   const tecnicosPorEvento = await dbAll<{ evento_id: number; id: number; nome: string }>(
@@ -47,6 +50,16 @@ export async function GET() {
       .filter((p) => p.evento_id === e.id)
       .map(({ id, nome, quantidade }) => ({ id, nome, quantidade })),
   }));
+
+  // Ordena por data crescente; eventos com data inválida/nula vão para o fim.
+  out.sort((a, b) => {
+    const da = parseDataBR(a.data);
+    const db = parseDataBR(b.data);
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return da.getTime() - db.getTime();
+  });
 
   return NextResponse.json(out);
 }
