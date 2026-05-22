@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import QRCode from "qrcode";
+import JSZip from "jszip";
 import QRDisplay from "@/components/staff/QRDisplay";
 import { labelStatusDevice } from "@/lib/staff";
 
@@ -42,6 +44,11 @@ export default function AparelhosPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [erro, setErro] = useState("");
   const [qr, setQr] = useState<Device | null>(null);
+  const [loteQtd, setLoteQtd] = useState("90");
+  const [loteInicio, setLoteInicio] = useState("1");
+  const [lotePrefixo, setLotePrefixo] = useState("");
+  const [gerandoLote, setGerandoLote] = useState(false);
+  const [loteMsg, setLoteMsg] = useState("");
 
   async function carregar() {
     const r = await fetch("/api/staff/devices");
@@ -107,6 +114,74 @@ export default function AparelhosPage() {
     carregar();
   }
 
+  // Desenha um PNG (número + QR) pronto pra ser papel de parede do celular.
+  async function desenharQR(d: { id: number; uuid: string; secure_token: string; nome: string }): Promise<Blob> {
+    const payload = JSON.stringify({ deviceId: d.id, uuid: d.uuid, secureToken: d.secure_token });
+    const qrUrl = await QRCode.toDataURL(payload, { width: 760, margin: 2, errorCorrectionLevel: "M" });
+    const W = 800;
+    const H = 940;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#0b3d91";
+    ctx.font = "bold 96px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(d.nome, W / 2, 110);
+    const img = new Image();
+    img.src = qrUrl;
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error("falha ao renderizar QR"));
+    });
+    ctx.drawImage(img, 20, 150, 760, 760);
+    return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), "image/png"));
+  }
+
+  async function gerarLote() {
+    const quantidade = parseInt(loteQtd) || 0;
+    if (quantidade < 1) {
+      setLoteMsg("Informe uma quantidade válida.");
+      return;
+    }
+    setGerandoLote(true);
+    setLoteMsg("Gerando...");
+    try {
+      const r = await fetch("/api/staff/devices/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantidade, inicio: parseInt(loteInicio) || 1, prefixo: lotePrefixo }),
+      });
+      if (!r.ok) {
+        const x = await r.json().catch(() => ({}));
+        setLoteMsg(x.error || "Erro ao gerar");
+        return;
+      }
+      const devices: { id: number; uuid: string; secure_token: string; nome: string; numero: number }[] = await r.json();
+      const zip = new JSZip();
+      const pad = String(Math.max(...devices.map((d) => d.numero))).length;
+      for (const d of devices) {
+        const blob = await desenharQR(d);
+        zip.file(`${String(d.numero).padStart(pad, "0")}.png`, blob);
+      }
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "qrcodes-staff.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+      setLoteMsg(`${devices.length} QR Codes gerados e baixados (qrcodes-staff.zip).`);
+      carregar();
+    } catch (e) {
+      setLoteMsg(e instanceof Error ? e.message : "Erro ao gerar/baixar");
+    } finally {
+      setGerandoLote(false);
+    }
+  }
+
   const inp = "w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500";
 
   return (
@@ -158,6 +233,38 @@ export default function AparelhosPage() {
           )}
         </div>
       </form>
+
+      <div className="bg-slate-800 rounded-xl p-4 mb-6 space-y-3">
+        <p className="text-sm font-semibold text-slate-200">Gerar QR Codes em lote</p>
+        <p className="text-xs text-slate-400">
+          Cria aparelhos numerados (sem precisar preencher dados), já bipáveis, e baixa um ZIP com 1 imagem por número —
+          é só pôr de papel de parede em cada celular. Os dados (patrimônio/telefone) você completa depois, se quiser.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Quantidade</label>
+            <input type="number" min={1} max={300} value={loteQtd} onChange={(e) => setLoteQtd(e.target.value)} className={inp} />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Começa em</label>
+            <input type="number" min={1} value={loteInicio} onChange={(e) => setLoteInicio(e.target.value)} className={inp} />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs text-slate-400 mb-1">Prefixo no nome (opcional)</label>
+            <input value={lotePrefixo} onChange={(e) => setLotePrefixo(e.target.value)} placeholder="ex: CEL-" className={inp} />
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={gerarLote}
+            disabled={gerandoLote}
+            className="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white px-4 py-2 rounded-lg"
+          >
+            {gerandoLote ? "Gerando..." : "Gerar e baixar ZIP"}
+          </button>
+          {loteMsg && <span className="text-sm text-slate-300">{loteMsg}</span>}
+        </div>
+      </div>
 
       {lista.length === 0 ? (
         <p className="bg-slate-800/50 rounded-xl p-8 text-center text-slate-400">Nenhum aparelho cadastrado ainda.</p>
