@@ -12,6 +12,7 @@
 
 import { GestaoAPI, GestaoProposal, GestaoAllocation } from "./gestao-api";
 import type { EventoExtraido } from "./parser";
+import { classificarKit, tipoKitDeModo } from "./kit-mode";
 
 export type ScrapeResult = {
   ok: boolean;
@@ -106,16 +107,6 @@ function extrairDadosKit(items: GestaoProposal["items"]): {
   return { qtd_celulares, dias_entrega, qtd_totens, qtd_notebooks };
 }
 
-function temItemSistema(items: GestaoProposal["items"]): boolean {
-  return (items || []).some((it) => {
-    const name = (it.name || it.description || "").toLowerCase();
-    return (
-      (name.includes("estação de entrega") || name.includes("estacao de entrega")) &&
-      name.includes("gorunking")
-    );
-  });
-}
-
 /**
  * Mapeia Proposal + alocações detalhadas para EventoExtraido.
  * is_entrega_kit é decidido POR TÉCNICO (entregaKitsQty > 0 ou cachê de kit > 0),
@@ -127,6 +118,9 @@ function mapProposalToEvento(
 ): EventoExtraido & { url: string } {
   const { cidade, uf } = parseCidadeUf(proposal.eventCity);
   const kitData = extrairDadosKit(proposal.items);
+
+  // Classificação do tipo de contratação (OPERATION = Chronomax opera; SYSTEM_ONLY = só locação)
+  const modo = classificarKit((proposal.items || []).map((it) => it.name || it.description));
 
   // Técnicos a partir das alocações detalhadas (inclui E.K, CPF e cachê)
   const tecnicos_gestao = allocations
@@ -148,7 +142,8 @@ function mapProposalToEvento(
         funcao: a.funcao ? a.funcao.toLowerCase() : null,
         cpf_prefixo,
         cache_ek,
-        is_entrega_kit: (a.entregaKitsQty || 0) > 0 || cache_ek > 0,
+        // Só conta como técnico de entrega de kit em eventos OPERATION (a Chronomax opera).
+        is_entrega_kit: modo === "OPERATION" && ((a.entregaKitsQty || 0) > 0 || cache_ek > 0),
       };
     });
 
@@ -158,13 +153,8 @@ function mapProposalToEvento(
     unidade: (it.unit || "unidade").toLowerCase(),
   }));
 
-  // tipo_kit: 'entrega' se algum técnico tem E.K, senão 'sistema' se tem item GoRunKing
-  let tipo_kit: "entrega" | "sistema" | null = null;
-  if (tecnicos_gestao.some((t) => t.is_entrega_kit)) {
-    tipo_kit = "entrega";
-  } else if (temItemSistema(proposal.items)) {
-    tipo_kit = "sistema";
-  }
+  // tipo_kit derivado do modo: OPERATION → 'entrega', SYSTEM_ONLY → 'sistema'
+  const tipo_kit = tipoKitDeModo(modo);
 
   const tem_entrega_kit =
     kitData.qtd_celulares > 0 ||

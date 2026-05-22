@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { classificarKit, tipoKitDeModo } from "./kit-mode";
 
 export type EventoExtraido = {
   numero: string | null;
@@ -102,16 +103,6 @@ function extrairCardsTecnicos(html: string): {
     });
   });
   return result;
-}
-
-/**
- * Verifica se o evento contém item de "Estação de Entrega de Kits via App
- * GoRunKing" (e variações). Indica que a Chronomax fornece o sistema.
- */
-function temItemSistema(itens: { nome: string }[]): boolean {
-  return itens.some((it) =>
-    /Esta[çc][ãa]o\s+de\s+Entrega\s+de\s+Kits\s+via\s+App\s+GoRunKing/i.test(it.nome)
-  );
 }
 
 function txt(s: string | null | undefined) {
@@ -356,14 +347,17 @@ export function parseEventoHTML(input: string): EventoExtraido {
   }
   result.itens_brutos = itens;
 
-  // Classifica o tipo de kit do evento:
-  //   E.K > 0 em algum técnico → Chronomax envia equipe ('entrega')
-  //   Senão, item "Estação de Entrega de Kits via App GoRunKing" → só sistema ('sistema')
+  // Classifica o tipo de contratação a partir dos itens:
+  //   OPERATION (Estação / Técnico de Entrega de Kits) → 'entrega'
+  //   SYSTEM_ONLY (Sistema ... Locação por Login/Estação) → 'sistema'
   //   Nenhum → null
-  if (result.tecnicos_gestao.some((t) => t.is_entrega_kit)) {
-    result.tipo_kit = "entrega";
-  } else if (temItemSistema(itens)) {
-    result.tipo_kit = "sistema";
+  const modo = classificarKit(itens.map((it) => it.nome));
+  result.tipo_kit = tipoKitDeModo(modo);
+  // Só eventos OPERATION têm equipe de entrega de kit; SYSTEM_ONLY (só locação) zera.
+  if (modo !== "OPERATION") {
+    result.tecnicos_gestao.forEach((t) => {
+      t.is_entrega_kit = false;
+    });
   }
 
   result.tem_entrega_kit =
