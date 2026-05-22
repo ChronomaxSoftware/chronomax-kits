@@ -3,6 +3,7 @@ import { dbRun, dbGet, dbAll, dbBatch, initDB } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { scrapeGestao } from "@/lib/scraper-fetch";
 import { iniciarSync, setProgresso, finalizarSync } from "@/lib/sync-progress";
+import { normalizarNome } from "@/lib/tecnico-match";
 
 export const maxDuration = 60;
 
@@ -73,7 +74,7 @@ export async function POST(req: NextRequest) {
   const tecnicoByCpf = new Map<string, number>();
   const tecnicosExistentes = await dbAll<{ id: number; nome: string; cpf_prefixo: string | null }>("SELECT id, nome, cpf_prefixo FROM tecnicos");
   for (const t of tecnicosExistentes) {
-    tecnicoByNome.set(t.nome.toLowerCase(), t.id);
+    tecnicoByNome.set(normalizarNome(t.nome), t.id);
     if (t.cpf_prefixo) tecnicoByCpf.set(t.cpf_prefixo, t.id);
   }
 
@@ -92,11 +93,12 @@ export async function POST(req: NextRequest) {
   const tecNovosToCreate: { nome: string; cpf_prefixo: string | null }[] = [];
   for (const ev of r.eventos) {
     for (const tec of ev.tecnicos_gestao || []) {
-      const key = tec.cpf_prefixo || tec.nome.toLowerCase();
+      const nomeNorm = normalizarNome(tec.nome);
+      const key = tec.cpf_prefixo || nomeNorm;
       const exists = tec.cpf_prefixo
-        ? tecnicoByCpf.has(tec.cpf_prefixo) || tecnicoByNome.has(tec.nome.toLowerCase())
-        : tecnicoByNome.has(tec.nome.toLowerCase());
-      if (!exists && !tecNovosToCreate.some((t) => (t.cpf_prefixo || t.nome.toLowerCase()) === key)) {
+        ? tecnicoByCpf.has(tec.cpf_prefixo) || tecnicoByNome.has(nomeNorm)
+        : tecnicoByNome.has(nomeNorm);
+      if (!exists && !tecNovosToCreate.some((t) => (t.cpf_prefixo || normalizarNome(t.nome)) === key)) {
         tecNovosToCreate.push({ nome: tec.nome, cpf_prefixo: tec.cpf_prefixo });
       }
     }
@@ -105,7 +107,8 @@ export async function POST(req: NextRequest) {
   // Criar técnicos novos em batch
   if (tecNovosToCreate.length > 0) {
     const stmts = tecNovosToCreate.map((t) => ({
-      sql: "INSERT INTO tecnicos (nome, cpf_prefixo) VALUES (?, ?)",
+      // ON CONFLICT protege contra o índice único de cpf_prefixo (caso o existente tenha escapado do match)
+      sql: "INSERT INTO tecnicos (nome, cpf_prefixo) VALUES (?, ?) ON CONFLICT(cpf_prefixo) DO NOTHING",
       args: [t.nome, t.cpf_prefixo] as (string | null)[],
     }));
     await dbBatch(stmts);
@@ -115,20 +118,23 @@ export async function POST(req: NextRequest) {
     tecnicoByNome.clear();
     tecnicoByCpf.clear();
     for (const t of todosT) {
-      tecnicoByNome.set(t.nome.toLowerCase(), t.id);
+      tecnicoByNome.set(normalizarNome(t.nome), t.id);
       if (t.cpf_prefixo) tecnicoByCpf.set(t.cpf_prefixo, t.id);
     }
   }
 
   function resolveTecnicoId(nome: string, cpf_prefixo: string | null): number | null {
     if (cpf_prefixo && tecnicoByCpf.has(cpf_prefixo)) return tecnicoByCpf.get(cpf_prefixo)!;
-    if (tecnicoByNome.has(nome.toLowerCase())) return tecnicoByNome.get(nome.toLowerCase())!;
+    const nomeNorm = normalizarNome(nome);
+    if (tecnicoByNome.has(nomeNorm)) return tecnicoByNome.get(nomeNorm)!;
     return null;
   }
 
   // Montar batch de todas as escritas de eventos
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allStmts: { sql: string; args: any[] }[] = [];
+  const atribuidoEm = new Date().toISOString();
+  const logTec: string[] = []; // diagnóstico TEMPORÁRIO de identificação de técnicos
 
   // Primeiro: criar eventos novos individualmente (precisamos dos IDs)
   for (const ev of r.eventos) {
@@ -161,11 +167,28 @@ export async function POST(req: NextRequest) {
     if (ev.qtd_totens > 0) allStmts.push({ sql: `INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?) ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = MAX(quantidade, excluded.quantidade)`, args: [eid, produtoCache.get("totem")!, ev.qtd_totens] });
     if (ev.qtd_notebooks > 0) allStmts.push({ sql: `INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?) ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = MAX(quantidade, excluded.quantidade)`, args: [eid, produtoCache.get("notebook")!, ev.qtd_notebooks] });
 
-    // Técnicos
+    // Técnicos de entrega de kit → evento_tecnicos (com função e data/hora da atribuição).
+    // ON CONFLICT mantém atribuido_em original e atualiza a função; nunca duplica o vínculo.
     for (const tec of ev.tecnicos_gestao || []) {
       if (tec.is_entrega_kit) {
         const tid = resolveTecnicoId(tec.nome, tec.cpf_prefixo);
-        if (tid) allStmts.push({ sql: `INSERT INTO evento_tecnicos (evento_id, tecnico_id) VALUES (?, ?) ON CONFLICT DO NOTHING`, args: [eid, tid] });
+        if (tid) {
+          allStmts.push({
+            sql: `INSERT INTO evento_tecnicos (evento_id, tecnico_id, funcao, atribuido_em) VALUES (?, ?, ?, ?)
+                  ON CONFLICT(evento_id, tecnico_id) DO UPDATE SET funcao = excluded.funcao`,
+            args: [eid, tid, tec.funcao || null, atribuidoEm],
+          });
+          if (logTec.length < 200)
+            logTec.push(
+              `  ✓ #${ev.numero} vincula: ${tec.nome}${tec.funcao ? ` (${tec.funcao})` : ""} ${tec.cpf_prefixo ? `[CPF ${tec.cpf_prefixo}]` : "[sem CPF → casou por nome]"}`
+            );
+        } else if (logTec.length < 200) {
+          logTec.push(`  ⚠ #${ev.numero} não resolveu técnico: ${tec.nome} (verificar)`);
+        }
+      } else if (logTec.length < 200) {
+        logTec.push(
+          `  ✗ #${ev.numero} ignora (não é entrega de kit): ${tec.nome}${tec.funcao ? ` (${tec.funcao})` : ""}`
+        );
       }
     }
 
@@ -210,7 +233,11 @@ export async function POST(req: NextRequest) {
     importados,
     atualizados,
     tecnicosNovos,
-    diagnostico: r.diagnostico,
+    diagnostico: [
+      ...(r.diagnostico || []),
+      "── Diagnóstico de técnicos (TEMPORÁRIO) ──",
+      ...logTec,
+    ],
   });
 }
 

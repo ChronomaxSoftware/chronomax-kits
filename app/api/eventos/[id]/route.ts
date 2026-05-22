@@ -8,12 +8,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!evento) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 
   const tecnicos = await dbAll(
-    `SELECT t.id, t.nome, t.telefone FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id WHERE et.evento_id = ?`,
+    `SELECT t.id, t.nome, t.telefone, t.ativo, et.funcao, et.atribuido_em
+     FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id
+     WHERE et.evento_id = ? AND t.ativo = 1`,
     id
   );
 
   const produtos = await dbAll(
-    `SELECT p.id, p.nome, ep.quantidade FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id WHERE ep.evento_id = ?`,
+    `SELECT p.id, p.nome, ep.quantidade, ep.recebido, ep.qtd_recebida, ep.recebido_em
+     FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id WHERE ep.evento_id = ?`,
     id
   );
 
@@ -58,17 +61,51 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   if (Array.isArray(body.tecnicos)) {
-    await dbRun("DELETE FROM evento_tecnicos WHERE evento_id = ?", id);
-    for (const tid of body.tecnicos) {
-      await dbRun("INSERT INTO evento_tecnicos (evento_id, tecnico_id) VALUES (?, ?)", id, tid);
+    // Preserva a atribuição existente (data/hora e função): remove só quem saiu,
+    // faz upsert dos demais e mantém atribuido_em original; novos recebem agora.
+    const ids = body.tecnicos.map((x: number) => Number(x)).filter((n: number) => !!n);
+    if (ids.length > 0) {
+      const ph = ids.map(() => "?").join(",");
+      await dbRun(`DELETE FROM evento_tecnicos WHERE evento_id = ? AND tecnico_id NOT IN (${ph})`, id, ...ids);
+    } else {
+      await dbRun("DELETE FROM evento_tecnicos WHERE evento_id = ?", id);
+    }
+    const agora = new Date().toISOString();
+    for (const tid of ids) {
+      await dbRun(
+        "INSERT INTO evento_tecnicos (evento_id, tecnico_id, atribuido_em) VALUES (?, ?, ?) ON CONFLICT(evento_id, tecnico_id) DO NOTHING",
+        id,
+        tid,
+        agora
+      );
     }
   }
 
   if (Array.isArray(body.produtos)) {
-    await dbRun("DELETE FROM evento_produtos WHERE evento_id = ?", id);
+    // Preserva a confirmação de recebimento: remove só os produtos que saíram da lista
+    // e faz upsert dos demais atualizando apenas a quantidade.
+    const ids = body.produtos
+      .filter((p: { quantidade: number }) => p.quantidade > 0)
+      .map((p: { id: number }) => p.id);
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => "?").join(",");
+      await dbRun(
+        `DELETE FROM evento_produtos WHERE evento_id = ? AND produto_id NOT IN (${placeholders})`,
+        id,
+        ...ids
+      );
+    } else {
+      await dbRun("DELETE FROM evento_produtos WHERE evento_id = ?", id);
+    }
     for (const p of body.produtos) {
       if (p.quantidade > 0) {
-        await dbRun("INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?)", id, p.id, p.quantidade);
+        await dbRun(
+          `INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?)
+           ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = excluded.quantidade`,
+          id,
+          p.id,
+          p.quantidade
+        );
       }
     }
   }

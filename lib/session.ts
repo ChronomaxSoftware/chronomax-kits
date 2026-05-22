@@ -5,6 +5,8 @@ export type SessionData = {
   userId?: number;
   username?: string;
   name?: string;
+  role?: "admin" | "tecnico";
+  tecnicoId?: number;
   isLoggedIn: boolean;
 };
 

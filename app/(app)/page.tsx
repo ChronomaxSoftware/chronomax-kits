@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { parseDataBR, inicioSemana, fimSemana, formatBR, chaveSemana } from "@/lib/semana";
+import { parseDataBR, inicioSemana, fimSemana, formatBR, chaveSemana, dataNaJanela, JANELA_SEMANAS } from "@/lib/semana";
 
 type Produto = { id: number; nome: string; quantidade_estoque: number };
 
@@ -30,7 +30,7 @@ type Evento = {
   base_final_ok_em: string | null;
   tem_kit: number;
   tipo_kit: "entrega" | "sistema" | null;
-  tecnicos: { id: number; nome: string }[];
+  tecnicos: { id: number; nome: string; funcao?: string | null }[];
   produtos: { id: number; nome: string; quantidade: number }[];
 };
 
@@ -45,6 +45,7 @@ export default function HomePage() {
   const [resultadoSync, setResultadoSync] = useState<string | null>(null);
   const [diagnostico, setDiagnostico] = useState<string[] | null>(null);
   const [progresso, setProgresso] = useState<{ fase: string; porcentagem: number; atual: number; total: number } | null>(null);
+  const [modo, setModo] = useState<"lista32" | "semana">("lista32");
 
   // Enquanto está sincronizando, faz polling de /api/sync/progress a cada 500ms
   useEffect(() => {
@@ -157,6 +158,33 @@ export default function HomePage() {
   }, [eventos]);
 
   const semanas = useMemo(() => Array.from(eventosPorSemana.keys()).sort(), [eventosPorSemana]);
+
+  // Janela das próximas 32 semanas (hoje → +224 dias), agrupada por semana e crescente.
+  // Eventos com data inválida vão para um bloco "sem data" (nunca somem).
+  const janela32 = useMemo(() => {
+    const ref = new Date();
+    const porSemana = new Map<string, Evento[]>();
+    const semData: Evento[] = [];
+    for (const e of eventos) {
+      const d = parseDataBR(e.data);
+      if (!d) {
+        semData.push(e);
+        continue;
+      }
+      if (!dataNaJanela(d, ref)) continue;
+      const k = chaveSemana(d);
+      if (!porSemana.has(k)) porSemana.set(k, []);
+      porSemana.get(k)!.push(e);
+    }
+    const chaves = Array.from(porSemana.keys()).sort();
+    for (const k of chaves) {
+      porSemana.get(k)!.sort(
+        (a, b) => (parseDataBR(a.data)?.getTime() ?? 0) - (parseDataBR(b.data)?.getTime() ?? 0)
+      );
+    }
+    const total = chaves.reduce((n, k) => n + porSemana.get(k)!.length, 0);
+    return { porSemana, chaves, semData, total };
+  }, [eventos]);
 
   const semanaCorrente = chaveSemana(semanaAtual);
   const eventosDaSemana = eventosPorSemana.get(semanaCorrente) || [];
@@ -299,58 +327,136 @@ export default function HomePage() {
       <DiagnosticoBox diagnostico={diagnostico} />
 
 
-      <div className="bg-slate-800 rounded-xl p-4 mb-6 flex items-center justify-between">
+      {/* Alternador de visão */}
+      <div className="flex gap-1 mb-4">
         <button
-          onClick={semanaAnterior}
-          className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm"
+          onClick={() => setModo("lista32")}
+          className={`px-4 py-2 rounded-lg text-sm ${
+            modo === "lista32" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+          }`}
         >
-          ← Semana anterior
+          Próximas {JANELA_SEMANAS} semanas
         </button>
-        <div className="text-center">
-          <p className="text-sm text-slate-400">Semana</p>
-          <p className="text-lg font-bold">
-            {formatBR(semanaAtual)} - {formatBR(fim)}
-          </p>
-          <p className="text-xs text-slate-500">{eventosDaSemana.length} evento(s)</p>
-        </div>
         <button
-          onClick={proximaSemana}
-          className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm"
+          onClick={() => setModo("semana")}
+          className={`px-4 py-2 rounded-lg text-sm ${
+            modo === "semana" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+          }`}
         >
-          Próxima semana →
+          Por semana
         </button>
       </div>
 
-      <ResumoSemanal produtos={produtos} uso={usoSemanal} bases={bases} usoPorBase={usoPorBase} />
+      {modo === "semana" ? (
+        <>
+          <div className="bg-slate-800 rounded-xl p-3 sm:p-4 mb-6 flex items-center justify-between gap-2">
+            <button
+              onClick={semanaAnterior}
+              className="bg-slate-700 hover:bg-slate-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm shrink-0"
+            >
+              <span className="sm:hidden">←</span>
+              <span className="hidden sm:inline">← Semana anterior</span>
+            </button>
+            <div className="text-center min-w-0">
+              <p className="text-xs sm:text-sm text-slate-400">Semana</p>
+              <p className="text-base sm:text-lg font-bold whitespace-nowrap">
+                {formatBR(semanaAtual)} - {formatBR(fim)}
+              </p>
+              <p className="text-xs text-slate-500">{eventosDaSemana.length} evento(s)</p>
+            </div>
+            <button
+              onClick={proximaSemana}
+              className="bg-slate-700 hover:bg-slate-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm shrink-0"
+            >
+              <span className="sm:hidden">→</span>
+              <span className="hidden sm:inline">Próxima semana →</span>
+            </button>
+          </div>
 
-      {eventosDaSemana.length === 0 ? (
-        <div className="text-center py-12 text-slate-400 bg-slate-800/50 rounded-xl">
-          <p className="mb-3">Nenhum evento nesta semana.</p>
-          {semanas.length > 0 && (
-            <div className="flex flex-wrap gap-2 justify-center mt-4">
-              <span className="text-xs text-slate-500">Semanas com eventos:</span>
-              {semanas.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSemanaAtual(new Date(s))}
-                  className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-slate-200"
-                >
-                  {formatBR(new Date(s))}
-                </button>
+          <ResumoSemanal produtos={produtos} uso={usoSemanal} bases={bases} usoPorBase={usoPorBase} />
+
+          {eventosDaSemana.length === 0 ? (
+            <div className="text-center py-12 text-slate-400 bg-slate-800/50 rounded-xl">
+              <p className="mb-3">Nenhum evento nesta semana.</p>
+              {semanas.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-center mt-4">
+                  <span className="text-xs text-slate-500">Semanas com eventos:</span>
+                  {semanas.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setSemanaAtual(new Date(s))}
+                      className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-slate-200"
+                    >
+                      {formatBR(new Date(s))}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {eventosDaSemana.map((e) => (
+                <CardEvento
+                  key={e.id}
+                  evento={e}
+                  onAtualizar={(novo) => setEventos((lista) => lista.map((ev) => (ev.id === novo.id ? novo : ev)))}
+                />
               ))}
             </div>
           )}
+        </>
+      ) : janela32.total === 0 && janela32.semData.length === 0 ? (
+        <div className="text-center py-12 text-slate-400 bg-slate-800/50 rounded-xl">
+          <p>Nenhum evento de kit nas próximas {JANELA_SEMANAS} semanas.</p>
+          <p className="text-xs text-slate-500 mt-2">Use &quot;Por semana&quot; para ver eventos passados.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {eventosDaSemana.map((e) => (
-            <CardEvento
-              key={e.id}
-              evento={e}
-              onAtualizar={(novo) => setEventos((lista) => lista.map((ev) => (ev.id === novo.id ? novo : ev)))}
-            />
-          ))}
-        </div>
+        <>
+          <p className="text-xs text-slate-500 mb-4">
+            {janela32.total} evento(s) de hoje até {JANELA_SEMANAS} semanas à frente · ordem crescente
+          </p>
+          {janela32.chaves.map((k) => {
+            const [y, mo, dy] = k.split("-").map(Number);
+            const ini = new Date(y, mo - 1, dy);
+            const fimS = fimSemana(ini);
+            const lista = janela32.porSemana.get(k)!;
+            return (
+              <div key={k} className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-slate-300">
+                    Semana {formatBR(ini)} – {formatBR(fimS)}
+                  </h3>
+                  <span className="text-xs text-slate-500">{lista.length} evento(s)</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {lista.map((e) => (
+                    <CardEvento
+                      key={e.id}
+                      evento={e}
+                      onAtualizar={(novo) => setEventos((l) => l.map((ev) => (ev.id === novo.id ? novo : ev)))}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {janela32.semData.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-amber-300 mb-2">
+                ⚠ Sem data / verificar ({janela32.semData.length})
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {janela32.semData.map((e) => (
+                  <CardEvento
+                    key={e.id}
+                    evento={e}
+                    onAtualizar={(novo) => setEventos((l) => l.map((ev) => (ev.id === novo.id ? novo : ev)))}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -663,6 +769,7 @@ function CardEvento({ evento, onAtualizar }: { evento: Evento; onAtualizar: (e: 
             {evento.tecnicos.map((t) => (
               <span key={t.id} className="text-xs bg-purple-900/50 text-purple-200 px-2 py-0.5 rounded">
                 {t.nome}
+                {t.funcao ? ` · ${t.funcao}` : ""}
               </span>
             ))}
           </div>

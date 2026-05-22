@@ -82,7 +82,7 @@ export default function ProdutosPage() {
         Cadastre os produtos e diga quantos você tem de cada. Isso é o que aparece em "estoque" no resumo da semana.
       </p>
 
-      <form onSubmit={salvar} className="bg-slate-800 rounded-xl p-4 mb-6 flex gap-3 items-end">
+      <form onSubmit={salvar} className="bg-slate-800 rounded-xl p-4 mb-6 flex flex-col sm:flex-row gap-3 sm:items-end">
         <div className="flex-1">
           <label className="block text-xs text-slate-400 mb-1">Nome do produto</label>
           <input
@@ -118,6 +118,7 @@ export default function ProdutosPage() {
         {lista.length === 0 ? (
           <p className="p-6 text-center text-slate-400">Nenhum produto cadastrado</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-slate-900 text-left text-xs text-slate-400 uppercase">
               <tr>
@@ -151,6 +152,7 @@ export default function ProdutosPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

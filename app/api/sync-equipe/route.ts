@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dbRun, dbGet, initDB } from "@/lib/db";
+import { dbRun, dbAll, initDB } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { scrapeEquipe } from "@/lib/scraper-equipe-fetch";
+import { normalizarNome } from "@/lib/tecnico-match";
 
 export const maxDuration = 60;
 
@@ -39,17 +40,26 @@ export async function POST(req: NextRequest) {
   let atualizados = 0;
   const agora = new Date().toISOString();
 
+  // Carrega todos os técnicos uma vez e casa por CPF (forte) ou nome normalizado
+  // (sem acento/caixa/espaço), mantendo os mapas em dia para não duplicar no mesmo run.
+  const existentes = await dbAll<{ id: number; nome: string; cpf_prefixo: string | null }>(
+    "SELECT id, nome, cpf_prefixo FROM tecnicos"
+  );
+  const porCpf = new Map<string, number>();
+  const porNome = new Map<string, number>();
+  for (const e of existentes) {
+    if (e.cpf_prefixo) porCpf.set(e.cpf_prefixo, e.id);
+    porNome.set(normalizarNome(e.nome), e.id);
+  }
+
   for (const t of r.tecnicos) {
     if (!t.nome) continue;
-    let existe: { id: number } | undefined;
-    if (t.cpf_prefixo) {
-      existe = await dbGet<{ id: number }>("SELECT id FROM tecnicos WHERE cpf_prefixo = ?", t.cpf_prefixo);
-    }
-    if (!existe) {
-      existe = await dbGet<{ id: number }>("SELECT id FROM tecnicos WHERE LOWER(nome) = LOWER(?)", t.nome);
-    }
+    const nomeNorm = normalizarNome(t.nome);
+    let id: number | undefined;
+    if (t.cpf_prefixo && porCpf.has(t.cpf_prefixo)) id = porCpf.get(t.cpf_prefixo);
+    else id = porNome.get(nomeNorm);
 
-    if (existe) {
+    if (id) {
       await dbRun(
         `UPDATE tecnicos SET
            nome = ?,
@@ -59,15 +69,20 @@ export async function POST(req: NextRequest) {
            cidade = COALESCE(?, cidade),
            ultima_sync_gestao = ?
          WHERE id = ?`,
-        t.nome, t.cpf_prefixo, t.telefone, t.email, t.cidade, agora, existe.id
+        t.nome, t.cpf_prefixo, t.telefone, t.email, t.cidade, agora, id
       );
+      if (t.cpf_prefixo) porCpf.set(t.cpf_prefixo, id);
+      porNome.set(nomeNorm, id);
       atualizados++;
     } else {
-      await dbRun(
+      const ins = await dbRun(
         `INSERT INTO tecnicos (nome, cpf_prefixo, telefone, email, cidade, ultima_sync_gestao)
          VALUES (?, ?, ?, ?, ?, ?)`,
         t.nome, t.cpf_prefixo, t.telefone, t.email, t.cidade, agora
       );
+      const newId = ins.lastInsertRowid as unknown as number;
+      if (t.cpf_prefixo) porCpf.set(t.cpf_prefixo, newId);
+      porNome.set(nomeNorm, newId);
       inseridos++;
     }
   }

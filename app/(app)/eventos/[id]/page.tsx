@@ -39,8 +39,8 @@ type Evento = {
   url_site_oficial: string | null;
   links_evento: string | null;
   usuarios_evento: string | null;
-  tecnicos: { id: number; nome: string; telefone: string | null }[];
-  produtos: { id: number; nome: string; quantidade: number }[];
+  tecnicos: { id: number; nome: string; telefone: string | null; funcao?: string | null; atribuido_em?: string | null }[];
+  produtos: { id: number; nome: string; quantidade: number; recebido?: number; qtd_recebida?: number | null; recebido_em?: string | null }[];
 };
 
 type Tecnico = { id: number; nome: string };
@@ -564,6 +564,27 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
           </Card>
 
           <Card titulo={`Técnicos (${tecnicosSel.size})`}>
+            {evento.tecnicos.length > 0 && (
+              <div className="mb-3 space-y-1">
+                <p className="text-[10px] text-slate-500 uppercase">Atribuídos a este evento</p>
+                {evento.tecnicos.map((t) => (
+                  <div
+                    key={t.id}
+                    className="text-sm text-slate-200 flex items-center justify-between gap-2 bg-slate-900/60 rounded px-2 py-1"
+                  >
+                    <span>
+                      {t.nome}
+                      {t.funcao ? <span className="text-slate-400"> · {t.funcao}</span> : null}
+                    </span>
+                    {t.atribuido_em && (
+                      <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                        {new Date(t.atribuido_em).toLocaleDateString("pt-BR")}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             {tecnicos.length === 0 ? (
               <p className="text-sm text-slate-400">
                 Nenhum técnico cadastrado.{" "}
@@ -635,6 +656,28 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 produtos no total
               </li>
             </ul>
+          </Card>
+
+          <Card titulo="📦 Recebimento do material (técnico)">
+            {evento.produtos.length === 0 ? (
+              <p className="text-sm text-slate-400">Nenhum material atribuído a este evento.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {evento.produtos.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-2">
+                    <span className="text-slate-200">{p.nome}</span>
+                    {p.recebido ? (
+                      <span className="text-green-400 text-xs whitespace-nowrap">
+                        ✓ {p.qtd_recebida ?? p.quantidade}/{p.quantidade}
+                        {p.recebido_em ? ` · ${new Date(p.recebido_em).toLocaleDateString("pt-BR")}` : ""}
+                      </span>
+                    ) : (
+                      <span className="text-slate-500 text-xs">pendente</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </div>
       </div>

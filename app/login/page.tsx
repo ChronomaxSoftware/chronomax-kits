@@ -25,7 +25,7 @@ export default function LoginPage() {
       setErro(data.error || "Erro ao entrar");
       return;
     }
-    router.push("/");
+    router.push(data.role === "tecnico" ? "/portal" : "/");
     router.refresh();
   }
 
