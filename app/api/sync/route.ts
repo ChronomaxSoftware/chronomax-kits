@@ -168,11 +168,14 @@ export async function POST(req: NextRequest) {
     if (ev.qtd_notebooks > 0) allStmts.push({ sql: `INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?) ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = MAX(quantidade, excluded.quantidade)`, args: [eid, produtoCache.get("notebook")!, ev.qtd_notebooks] });
 
     // Técnicos de entrega de kit → evento_tecnicos (com função e data/hora da atribuição).
-    // ON CONFLICT mantém atribuido_em original e atualiza a função; nunca duplica o vínculo.
+    // RECONCILIA: só os técnicos de kit ATUAIS ficam. Antes só inseria (ON CONFLICT DO NOTHING)
+    // e nunca removia → vínculos antigos/errados (quando marcava todos) se acumulavam.
+    const kitTids: number[] = [];
     for (const tec of ev.tecnicos_gestao || []) {
       if (tec.is_entrega_kit) {
         const tid = resolveTecnicoId(tec.nome, tec.cpf_prefixo);
         if (tid) {
+          kitTids.push(tid);
           allStmts.push({
             sql: `INSERT INTO evento_tecnicos (evento_id, tecnico_id, funcao, atribuido_em) VALUES (?, ?, ?, ?)
                   ON CONFLICT(evento_id, tecnico_id) DO UPDATE SET funcao = excluded.funcao`,
@@ -190,6 +193,16 @@ export async function POST(req: NextRequest) {
           `  ✗ #${ev.numero} ignora (não é entrega de kit): ${tec.nome}${tec.funcao ? ` (${tec.funcao})` : ""}`
         );
       }
+    }
+    // Remove os vínculos que não são mais de entrega de kit (limpa o acúmulo do bug antigo)
+    if (kitTids.length > 0) {
+      const ph = kitTids.map(() => "?").join(",");
+      allStmts.push({
+        sql: `DELETE FROM evento_tecnicos WHERE evento_id = ? AND tecnico_id NOT IN (${ph})`,
+        args: [eid, ...kitTids],
+      });
+    } else {
+      allStmts.push({ sql: "DELETE FROM evento_tecnicos WHERE evento_id = ?", args: [eid] });
     }
 
     // Limpar e re-inserir itens e equipe
