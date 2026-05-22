@@ -1,18 +1,16 @@
 /**
  * Substituto do scraper.ts (Playwright) usando chamadas diretas à API REST do Gestão.
- * Mantém a mesma interface (ScrapeResult, ScrapeOptions) para compatibilidade
- * com o sync/route.ts.
  *
- * Fluxo de requests:
- *   1 login + 1 proposals + 1 bulk (filtra eventos com equipe)
- *   + N alocações detalhadas (só pros eventos com equipe, em paralelo por lotes).
- * As alocações detalhadas trazem entregaKitsQty/CPF/cachê por técnico — necessário
- * pra marcar is_entrega_kit individualmente (só técnico de entrega de kit, não toda a equipe).
+ * Estratégia (pra caber no limite de 60s da Vercel):
+ *   1 login + 1 proposals + 1 bulk (equipe de TODOS os eventos, nome+função)
+ *   + N alocações detalhadas SÓ dos eventos OPERATION com equipe (poucas) — pra
+ *   obter E.K/CPF dos técnicos de entrega de kit. Eventos SYSTEM_ONLY / prova não
+ *   pagam o custo do detalhado.
  */
 
 import { GestaoAPI, GestaoProposal, GestaoAllocation } from "./gestao-api";
 import type { EventoExtraido } from "./parser";
-import { classificarKit, tipoKitDeModo } from "./kit-mode";
+import { classificarKit, tipoKitDeModo, DeliveryKitMode } from "./kit-mode";
 
 export type ScrapeResult = {
   ok: boolean;
@@ -32,6 +30,9 @@ export type ScrapeOptions = {
   debug?: boolean;
   onProgress?: (fase: string, porcentagem: number, atual?: number, total?: number) => void;
 };
+
+type BulkTech = { id: string; name: string; status: string; funcao: string | null };
+type TecnicoGestao = EventoExtraido["tecnicos_gestao"][number];
 
 // ── Helpers de mapeamento ─────────────────────────────────────────────
 
@@ -107,45 +108,44 @@ function extrairDadosKit(items: GestaoProposal["items"]): {
   return { qtd_celulares, dias_entrega, qtd_totens, qtd_notebooks };
 }
 
-/**
- * Mapeia Proposal + alocações detalhadas para EventoExtraido.
- * is_entrega_kit é decidido POR TÉCNICO (entregaKitsQty > 0 ou cachê de kit > 0),
- * não pelo evento — assim só os técnicos da entrega de kit entram em evento_tecnicos.
- */
+/** Técnico a partir de uma alocação detalhada (eventos OPERATION): tem E.K e CPF. */
+function tecnicoDeAllocation(a: GestaoAllocation, modo: DeliveryKitMode): TecnicoGestao {
+  let cpf_prefixo: string | null = null;
+  if (a.technician?.document && a.technician.documentType === "cpf") {
+    const digits = a.technician.document.replace(/\D/g, "");
+    if (digits.length >= 9) {
+      cpf_prefixo = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}`;
+    }
+  }
+  const cache_ek = Number(a.kitDeliveryAmount) || 0;
+  return {
+    nome: a.technicianName || a.technician?.companyName || "Desconhecido",
+    funcao: a.funcao ? a.funcao.toLowerCase() : null,
+    cpf_prefixo,
+    cache_ek,
+    // Só é técnico de entrega de kit em eventos OPERATION (a Chronomax opera).
+    is_entrega_kit: modo === "OPERATION" && ((a.entregaKitsQty || 0) > 0 || cache_ek > 0),
+  };
+}
+
+/** Técnico a partir do bulk (snapshot da equipe; nunca conta como entrega de kit). */
+function tecnicoDeBulk(t: BulkTech): TecnicoGestao {
+  return {
+    nome: t.name || "Desconhecido",
+    funcao: t.funcao ? t.funcao.toLowerCase() : null,
+    cpf_prefixo: null,
+    cache_ek: 0,
+    is_entrega_kit: false,
+  };
+}
+
 function mapProposalToEvento(
   proposal: GestaoProposal,
-  allocations: GestaoAllocation[],
+  modo: DeliveryKitMode,
+  tecnicos_gestao: TecnicoGestao[],
 ): EventoExtraido & { url: string } {
   const { cidade, uf } = parseCidadeUf(proposal.eventCity);
   const kitData = extrairDadosKit(proposal.items);
-
-  // Classificação do tipo de contratação (OPERATION = Chronomax opera; SYSTEM_ONLY = só locação)
-  const modo = classificarKit((proposal.items || []).map((it) => it.name || it.description));
-
-  // Técnicos a partir das alocações detalhadas (inclui E.K, CPF e cachê)
-  const tecnicos_gestao = allocations
-    .filter((a) => a.status !== "cancelled")
-    .map((a) => {
-      // CPF prefixo: documento do supplier (ex: "123.456.789-00" → "123.456.789")
-      let cpf_prefixo: string | null = null;
-      if (a.technician?.document && a.technician.documentType === "cpf") {
-        const digits = a.technician.document.replace(/\D/g, "");
-        if (digits.length >= 9) {
-          cpf_prefixo = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}`;
-        }
-      }
-
-      const cache_ek = Number(a.kitDeliveryAmount) || 0;
-
-      return {
-        nome: a.technicianName || a.technician?.companyName || "Desconhecido",
-        funcao: a.funcao ? a.funcao.toLowerCase() : null,
-        cpf_prefixo,
-        cache_ek,
-        // Só conta como técnico de entrega de kit em eventos OPERATION (a Chronomax opera).
-        is_entrega_kit: modo === "OPERATION" && ((a.entregaKitsQty || 0) > 0 || cache_ek > 0),
-      };
-    });
 
   const itens_brutos = (proposal.items || []).map((it) => ({
     nome: (it.name || it.description || "Item").slice(0, 200),
@@ -153,7 +153,6 @@ function mapProposalToEvento(
     unidade: (it.unit || "unidade").toLowerCase(),
   }));
 
-  // tipo_kit derivado do modo: OPERATION → 'entrega', SYSTEM_ONLY → 'sistema'
   const tipo_kit = tipoKitDeModo(modo);
 
   const tem_entrega_kit =
@@ -195,97 +194,98 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
   try {
     log.push("Iniciando sync via API REST (sem Playwright)");
 
-    // 1. Login (1 request)
+    // 1. Login
     progress("Fazendo login na API do Gestão", 5);
     const api = new GestaoAPI(opts.baseUrl);
     const loginRes = await api.login(opts.usuario, opts.senha);
     log.push(`Login OK: ${loginRes.user.name} (${loginRes.user.email})`);
 
-    // 2. Buscar propostas (1 request)
+    // 2. Propostas
     progress("Buscando propostas", 15);
     const proposalsRes = await api.getProposals();
     const allProposals = proposalsRes.proposals || [];
-    log.push(`Total de propostas: ${allProposals.length}`);
+    const proposals = allProposals.filter((p) => p.status === "aprovada" || p.status === "em_negociacao");
+    log.push(`Propostas: ${allProposals.length} total, ${proposals.length} aprovadas/em_negociacao`);
 
-    const proposals = allProposals.filter(
-      (p) => p.status === "aprovada" || p.status === "em_negociacao"
-    );
-    log.push(`Propostas aprovadas/em_negociacao: ${proposals.length}`);
+    // 3. Classificar modo por evento (a partir dos itens — sem requisição)
+    const modoPorId = new Map<string, DeliveryKitMode>();
+    for (const p of proposals) {
+      modoPorId.set(p.id, classificarKit((p.items || []).map((it) => it.name || it.description)));
+    }
+    const totalOperation = [...modoPorId.values()].filter((m) => m === "OPERATION").length;
+    log.push(`Modo: ${totalOperation} OPERATION (entrega de kit) de ${proposals.length}`);
 
-    // 3. Buscar alocações: bulk (1 request) pra saber quais eventos têm equipe,
-    //    depois alocações detalhadas só pra esses (em paralelo, por lotes).
-    progress("Buscando alocações de técnicos", 25);
+    // 4. Bulk (1 request): equipe de todos os eventos
+    progress("Buscando equipe (bulk)", 30);
     const eventIds = proposals.map((p) => p.id);
-    const allAllocations: Record<string, GestaoAllocation[]> = {};
-
+    let bulkData: Record<string, { totalAllocated: number; allTechnicians: BulkTech[] }> = {};
     if (eventIds.length > 0) {
-      // 3a. Bulk → filtra eventos com técnico alocado (evita N requests desnecessários)
-      let eventosComEquipe: string[] = eventIds;
       try {
         const bulkRes = await api.getBulkAllocations(eventIds, "proposal");
-        const bulkData = bulkRes.data || {};
-        eventosComEquipe = eventIds.filter((id) => (bulkData[id]?.totalAllocated || 0) > 0);
-        log.push(`Bulk OK: ${eventosComEquipe.length} eventos com equipe de ${eventIds.length} total`);
+        bulkData = (bulkRes.data || {}) as typeof bulkData;
+        const comEquipe = Object.values(bulkData).filter((v) => (v.totalAllocated || 0) > 0).length;
+        log.push(`Bulk OK: ${comEquipe} eventos com equipe`);
       } catch (e) {
-        log.push(`⚠️ Bulk falhou, buscando alocações de todos os eventos: ${e instanceof Error ? e.message : e}`);
+        log.push(`⚠️ Bulk falhou: ${e instanceof Error ? e.message : e}`);
       }
-
-      // 3b. Alocações detalhadas (com entregaKitsQty/CPF/cachê) só pros eventos com equipe
-      const batchSize = 15;
-      const total = eventosComEquipe.length;
-      for (let i = 0; i < total; i += batchSize) {
-        const batch = eventosComEquipe.slice(i, i + batchSize);
-        const results = await Promise.all(
-          batch.map(async (eid) => {
-            try {
-              const res = await api.getEventAllocations(eid, "proposal");
-              return { eid, allocations: res.data?.allocations || [] };
-            } catch {
-              log.push(`⚠️ Falha ao buscar alocações do evento ${eid}`);
-              return { eid, allocations: [] as GestaoAllocation[] };
-            }
-          })
-        );
-        for (const r of results) allAllocations[r.eid] = r.allocations;
-        const feito = Math.min(i + batchSize, total);
-        const pct = 25 + Math.round((feito / Math.max(total, 1)) * 50);
-        progress(`Buscando alocações ${feito}/${total}`, pct, feito, total);
-      }
-      log.push(`Alocações detalhadas carregadas para ${Object.keys(allAllocations).length} eventos`);
     }
 
-    // 4. Mapear para EventoExtraido (CPU only, sem I/O)
-    progress("Processando eventos", 80);
-    const eventos: (EventoExtraido & { url: string })[] = [];
-    let logouChaves = false;
-    let eventosDetalhados = 0;
+    // 5. Detalhado SÓ para eventos OPERATION com equipe (poucos → cabe em 60s)
+    const idsDetalhe = eventIds.filter(
+      (id) => modoPorId.get(id) === "OPERATION" && (bulkData[id]?.totalAllocated || 0) > 0
+    );
+    log.push(`Alocações detalhadas para ${idsDetalhe.length} eventos OPERATION com equipe`);
+    const allAllocations: Record<string, GestaoAllocation[]> = {};
+    const batchSize = 15;
+    for (let i = 0; i < idsDetalhe.length; i += batchSize) {
+      const batch = idsDetalhe.slice(i, i + batchSize);
+      const results = await Promise.all(
+        batch.map(async (eid) => {
+          try {
+            const res = await api.getEventAllocations(eid, "proposal");
+            return { eid, allocations: res.data?.allocations || [] };
+          } catch {
+            log.push(`⚠️ Falha nas alocações do evento ${eid}`);
+            return { eid, allocations: [] as GestaoAllocation[] };
+          }
+        })
+      );
+      for (const r of results) allAllocations[r.eid] = r.allocations;
+      const feito = Math.min(i + batchSize, idsDetalhe.length);
+      const pct = 40 + Math.round((feito / Math.max(idsDetalhe.length, 1)) * 40);
+      progress(`Alocações ${feito}/${idsDetalhe.length}`, pct, feito, idsDetalhe.length);
+    }
 
+    // 6. Mapear
+    progress("Processando eventos", 85);
+    const eventos: (EventoExtraido & { url: string })[] = [];
+    let logEventos = 0;
     for (const p of proposals) {
       try {
-        const allocs = allAllocations[p.id] || [];
-        const ev = mapProposalToEvento(p, allocs);
+        const modo = modoPorId.get(p.id) ?? null;
+        let tecnicos_gestao: TecnicoGestao[];
+        if (modo === "OPERATION") {
+          const allocs = allAllocations[p.id] || [];
+          tecnicos_gestao = allocs.filter((a) => a.status !== "cancelled").map((a) => tecnicoDeAllocation(a, modo));
+        } else {
+          const equipe = bulkData[p.id]?.allTechnicians || [];
+          tecnicos_gestao = equipe.filter((t) => t.status !== "cancelled").map(tecnicoDeBulk);
+        }
+        const ev = mapProposalToEvento(p, modo, tecnicos_gestao);
         eventos.push(ev);
 
-        // ── Diagnóstico TEMPORÁRIO: conferir E.K por técnico (remover após validar) ──
-        if (allocs.length > 0) {
-          if (!logouChaves) {
-            log.push(`🔎 Campos da alocação: ${Object.keys(allocs[0]).join(", ")}`);
-            logouChaves = true;
-          }
-          if (ev.tem_entrega_kit && eventosDetalhados < 15) {
-            eventosDetalhados++;
-            const kitCount = ev.tecnicos_gestao.filter((t) => t.is_entrega_kit).length;
-            log.push(`🔎 #${ev.numero || "?"} ${(ev.nome || "").slice(0, 40)} — ${allocs.length} alocações, ${kitCount} de kit:`);
-            for (const a of allocs) {
-              log.push(
-                `      - ${a.technicianName || a.technician?.companyName || "?"} | funcao:${a.funcao ?? "-"} | entregaKitsQty:${a.entregaKitsQty} | kitDeliveryAmount:${a.kitDeliveryAmount} | status:${a.status}`
-              );
-            }
-          }
+        // Diagnóstico TEMPORÁRIO: por evento OPERATION, quem entra como técnico de kit
+        if (modo === "OPERATION" && logEventos < 25) {
+          logEventos++;
+          const kit = ev.tecnicos_gestao.filter((t) => t.is_entrega_kit);
+          log.push(
+            `🔎 #${ev.numero} [${modo}] ${ev.tecnicos_gestao.length} na equipe, ${kit.length} de kit: ${kit
+              .map((t) => `${t.nome}${t.cpf_prefixo ? ` [${t.cpf_prefixo}]` : ""}`)
+              .join(", ") || "(nenhum)"}`
+          );
         }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        log.push(`❌ Erro ao mapear proposta ${p.number}: ${msg}`);
+        log.push(`❌ Erro ao mapear proposta ${p.number}: ${e instanceof Error ? e.message : e}`);
       }
     }
 
@@ -303,13 +303,6 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.push(`❌ ERRO: ${msg}`);
-    return {
-      ok: false,
-      erro: msg,
-      eventosEncontrados: 0,
-      eventosKit: 0,
-      eventos: [],
-      diagnostico: log,
-    };
+    return { ok: false, erro: msg, eventosEncontrados: 0, eventosKit: 0, eventos: [], diagnostico: log };
   }
 }
