@@ -117,26 +117,35 @@ export default function AparelhosPage() {
   // Desenha um PNG (número + QR) pronto pra ser papel de parede do celular.
   async function desenharQR(d: { id: number; uuid: string; secure_token: string; nome: string }): Promise<Blob> {
     const payload = JSON.stringify({ deviceId: d.id, uuid: d.uuid, secureToken: d.secure_token });
-    const qrUrl = await QRCode.toDataURL(payload, { width: 760, margin: 2, errorCorrectionLevel: "M" });
+    const qrUrl = await QRCode.toDataURL(payload, { width: 720, margin: 2, errorCorrectionLevel: "M" });
     const W = 800;
-    const H = 940;
+    const H = 990;
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext("2d")!;
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#0b3d91";
-    ctx.font = "bold 96px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(d.nome, W / 2, 110);
+    // Marca Chronomax
+    ctx.fillStyle = "#0b3d91";
+    ctx.font = "bold 58px sans-serif";
+    ctx.fillText("CHRONOMAX", W / 2, 72);
+    ctx.fillStyle = "#64748b";
+    ctx.font = "600 22px sans-serif";
+    ctx.fillText("CONTROLE DE STAFF", W / 2, 104);
+    // Número do aparelho
+    ctx.fillStyle = "#0b3d91";
+    ctx.font = "bold 80px sans-serif";
+    ctx.fillText(d.nome, W / 2, 195);
+    // QR Code
     const img = new Image();
     img.src = qrUrl;
     await new Promise<void>((res, rej) => {
       img.onload = () => res();
       img.onerror = () => rej(new Error("falha ao renderizar QR"));
     });
-    ctx.drawImage(img, 20, 150, 760, 760);
+    ctx.drawImage(img, 40, 230, 720, 720);
     return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), "image/png"));
   }
 
