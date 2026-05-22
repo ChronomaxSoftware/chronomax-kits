@@ -39,6 +39,7 @@ export default function HomePage() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [bases, setBases] = useState<Base[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [erroCarregar, setErroCarregar] = useState<string | null>(null);
   const [semanaAtual, setSemanaAtual] = useState<Date>(inicioSemana(new Date()));
   const [sincronizando, setSincronizando] = useState(false);
   const [sincronizandoEquipe, setSincronizandoEquipe] = useState(false);
@@ -67,16 +68,25 @@ export default function HomePage() {
   }, [sincronizando]);
 
   function recarregar() {
-    Promise.all([
-      fetch("/api/eventos").then((r) => r.json()),
-      fetch("/api/produtos").then((r) => r.json()),
-      fetch("/api/bases").then((r) => r.json()),
-    ]).then(([ev, pr, bs]) => {
-      setEventos((ev as Evento[]).filter((e) => e.tem_kit === 1));
-      setProdutos(pr);
-      setBases(bs);
-      setCarregando(false);
-    });
+    setErroCarregar(null);
+    Promise.all([fetch("/api/eventos"), fetch("/api/produtos"), fetch("/api/bases")])
+      .then(async ([rEv, rPr, rBs]) => {
+        if (!rEv.ok || !rPr.ok || !rBs.ok) {
+          throw new Error(`API com erro (eventos ${rEv.status} · produtos ${rPr.status} · bases ${rBs.status})`);
+        }
+        const [ev, pr, bs] = await Promise.all([rEv.json(), rPr.json(), rBs.json()]);
+        setEventos((ev as Evento[]).filter((e) => e.tem_kit === 1));
+        setProdutos(pr);
+        setBases(bs);
+        setCarregando(false);
+      })
+      .catch((e) => {
+        setCarregando(false);
+        setErroCarregar(
+          "Não foi possível carregar os dados — a API respondeu vazio ou com erro. Verifique a conexão com o banco (variáveis do Turso no ambiente)."
+        );
+        console.error("recarregar falhou:", e);
+      });
   }
 
   useEffect(() => {
@@ -231,6 +241,24 @@ export default function HomePage() {
   }
 
   if (carregando) return <p className="text-slate-400">Carregando...</p>;
+
+  if (erroCarregar) {
+    return (
+      <div className="bg-red-900/40 border border-red-700 text-red-200 p-4 rounded-xl max-w-2xl">
+        <p className="font-semibold mb-1">Erro ao carregar</p>
+        <p className="text-sm">{erroCarregar}</p>
+        <button
+          onClick={() => {
+            setCarregando(true);
+            recarregar();
+          }}
+          className="mt-3 bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-sm"
+        >
+          Tentar de novo
+        </button>
+      </div>
+    );
+  }
 
   if (eventos.length === 0) {
     return (
