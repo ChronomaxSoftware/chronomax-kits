@@ -114,38 +114,83 @@ export default function AparelhosPage() {
     carregar();
   }
 
-  // Desenha um PNG (número + QR) pronto pra ser papel de parede do celular.
+  // Desenha um PNG idêntico ao card azul do QRDisplay (visto no notebook),
+  // pronto pra ser papel de parede do celular.
   async function desenharQR(d: { id: number; uuid: string; secure_token: string; nome: string }): Promise<Blob> {
     const payload = JSON.stringify({ deviceId: d.id, uuid: d.uuid, secureToken: d.secure_token });
-    const qrUrl = await QRCode.toDataURL(payload, { width: 720, margin: 2, errorCorrectionLevel: "M" });
+    const qrUrl = await QRCode.toDataURL(payload, { width: 720, margin: 1, errorCorrectionLevel: "M" });
     const W = 800;
     const H = 990;
+    const codigo = d.uuid.slice(0, 8).toUpperCase();
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#ffffff";
+    // Fundo: gradiente azul (blue-700 → blue-950), igual ao card do QRDisplay
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, "#1d4ed8");
+    grad.addColorStop(1, "#172554");
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
     ctx.textAlign = "center";
     // Marca Chronomax
-    ctx.fillStyle = "#0b3d91";
-    ctx.font = "bold 58px sans-serif";
-    ctx.fillText("CHRONOMAX", W / 2, 72);
-    ctx.fillStyle = "#64748b";
-    ctx.font = "600 22px sans-serif";
-    ctx.fillText("CONTROLE DE STAFF", W / 2, 104);
-    // Número do aparelho
-    ctx.fillStyle = "#0b3d91";
-    ctx.font = "bold 80px sans-serif";
-    ctx.fillText(d.nome, W / 2, 195);
-    // QR Code
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "800 60px sans-serif";
+    ctx.fillText("CHRONOMAX", W / 2, 110);
+    ctx.fillStyle = "#bfdbfe"; // blue-200
+    ctx.font = "600 24px sans-serif";
+    ctx.letterSpacing = "8px";
+    ctx.fillText("CONTROLE DE STAFF", W / 2, 150);
+    ctx.letterSpacing = "0px";
+    // Nome do aparelho — encolhe a fonte e quebra em até 2 linhas pra nunca cortar
+    // (no notebook o texto é HTML e quebra sozinho; no canvas precisamos ajustar na mão).
+    const maxNomeW = 700;
+    const escolherNome = (): { lines: string[]; size: number } => {
+      for (let s = 90; s >= 48; s -= 2) {
+        ctx.font = `bold ${s}px sans-serif`;
+        if (ctx.measureText(d.nome).width <= maxNomeW) return { lines: [d.nome], size: s };
+      }
+      const palavras = d.nome.split(/\s+/).filter(Boolean);
+      for (let s = 60; s >= 34; s -= 2) {
+        ctx.font = `bold ${s}px sans-serif`;
+        let l1 = "";
+        let i = 0;
+        for (; i < palavras.length; i++) {
+          const t = l1 ? `${l1} ${palavras[i]}` : palavras[i];
+          if (ctx.measureText(t).width > maxNomeW) break;
+          l1 = t;
+        }
+        const l2 = palavras.slice(i).join(" ");
+        if (l1 && !l2) return { lines: [l1], size: s };
+        if (l1 && ctx.measureText(l2).width <= maxNomeW) return { lines: [l1, l2], size: s };
+      }
+      ctx.font = "bold 34px sans-serif";
+      return { lines: [d.nome], size: 34 };
+    };
+    const nomeFit = escolherNome();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${nomeFit.size}px sans-serif`;
+    const nomeCy = 235;
+    const lh = nomeFit.size * 1.08;
+    const nomeStartY = nomeCy - ((nomeFit.lines.length - 1) * lh) / 2 + nomeFit.size * 0.34;
+    nomeFit.lines.forEach((ln, i) => ctx.fillText(ln, W / 2, nomeStartY + i * lh));
+    // Código (8 primeiros do uuid)
+    ctx.fillStyle = "#bfdbfe";
+    ctx.font = "500 28px sans-serif";
+    ctx.fillText(`Código: ${codigo}`, W / 2, 335);
+    // Caixa branca arredondada com o QR
+    const boxX = 110, boxY = 365, boxSize = 580, pad = 28;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxSize, boxSize, 28);
+    ctx.fill();
     const img = new Image();
     img.src = qrUrl;
     await new Promise<void>((res, rej) => {
       img.onload = () => res();
       img.onerror = () => rej(new Error("falha ao renderizar QR"));
     });
-    ctx.drawImage(img, 40, 230, 720, 720);
+    ctx.drawImage(img, boxX + pad, boxY + pad, boxSize - pad * 2, boxSize - pad * 2);
     return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), "image/png"));
   }
 
