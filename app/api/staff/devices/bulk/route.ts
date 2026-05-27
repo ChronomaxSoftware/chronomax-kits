@@ -64,3 +64,51 @@ export async function POST(req: NextRequest) {
     }))
   );
 }
+
+// DELETE /api/staff/devices/bulk — exclui vários aparelhos de uma vez (admin).
+// Pula os que têm histórico (staff_assignments): esses só podem ser inativados.
+export async function DELETE(req: NextRequest) {
+  await initDB();
+  const s = await getStaffSession();
+  if (!s) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  if (s.role !== "admin") return NextResponse.json({ error: "Apenas administradores" }, { status: 403 });
+
+  const b = await req.json().catch(() => ({}));
+  const rawIds: unknown[] = Array.isArray(b.ids) ? b.ids : [];
+  const ids = Array.from(
+    new Set(rawIds.map((x) => parseInt(String(x), 10)).filter((n) => Number.isInteger(n) && n > 0))
+  );
+  if (ids.length === 0) return NextResponse.json({ error: "Nenhum aparelho selecionado" }, { status: 400 });
+
+  // Quais possuem histórico (não podem ser excluídos)
+  const bloqueados = new Set<number>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    const ph = chunk.map(() => "?").join(",");
+    const rows = await dbAll<{ device_id: number }>(
+      `SELECT DISTINCT device_id FROM staff_assignments WHERE device_id IN (${ph})`,
+      ...chunk
+    );
+    for (const r of rows) bloqueados.add(Number(r.device_id));
+  }
+
+  const apagar = ids.filter((id) => !bloqueados.has(id));
+  if (apagar.length > 0) {
+    const stmts = apagar.map((id) => ({
+      sql: "DELETE FROM staff_devices WHERE id = ?",
+      args: [id],
+    }));
+    for (let i = 0; i < stmts.length; i += 200) {
+      await dbBatch(stmts.slice(i, i + 200));
+    }
+  }
+
+  await registrarAuditoria(
+    req,
+    s.usuario,
+    "Excluiu aparelhos em lote",
+    `${apagar.length} excluído(s)${bloqueados.size ? `, ${bloqueados.size} com histórico (mantidos)` : ""}`
+  );
+
+  return NextResponse.json({ excluidos: apagar.length, bloqueados: Array.from(bloqueados) });
+}

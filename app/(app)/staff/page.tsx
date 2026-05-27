@@ -49,6 +49,9 @@ export default function AparelhosPage() {
   const [lotePrefixo, setLotePrefixo] = useState("");
   const [gerandoLote, setGerandoLote] = useState(false);
   const [loteMsg, setLoteMsg] = useState("");
+  const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
+  const [acaoMsg, setAcaoMsg] = useState("");
+  const [processando, setProcessando] = useState(false);
 
   async function carregar() {
     const r = await fetch("/api/staff/devices");
@@ -194,7 +197,59 @@ export default function AparelhosPage() {
     return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b!), "image/png"));
   }
 
-  async function gerarLote() {
+  // Sanitiza o nome do aparelho pra virar nome de arquivo válido.
+  function nomeArquivo(nome: string) {
+    return (nome || "qr").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() || "qr";
+  }
+
+  // Núcleo reutilizável: grava 1 PNG por aparelho direto numa pasta (pendrive),
+  // via File System Access API. Sem suporte no navegador, cai no download de ZIP.
+  async function exportarParaPasta(
+    devices: { id: number; uuid: string; secure_token: string; nome: string }[],
+    msg: (s: string) => void
+  ) {
+    const usados = new Set<string>();
+    const nomeUnico = (nome: string) => {
+      const base = nomeArquivo(nome);
+      let fn = `${base}.png`;
+      let k = 2;
+      while (usados.has(fn)) fn = `${base} (${k++}).png`;
+      usados.add(fn);
+      return fn;
+    };
+    const picker = (
+      window as unknown as {
+        showDirectoryPicker?: (o?: { mode?: "read" | "readwrite" }) => Promise<FileSystemDirectoryHandle>;
+      }
+    ).showDirectoryPicker;
+
+    if (picker) {
+      const dir = await picker({ mode: "readwrite" });
+      let n = 0;
+      for (const d of devices) {
+        const blob = await desenharQR(d);
+        const fh = await dir.getFileHandle(nomeUnico(d.nome), { create: true });
+        const w = await fh.createWritable();
+        await w.write(blob);
+        await w.close();
+        msg(`Salvando na pasta... ${++n}/${devices.length}`);
+      }
+      msg(`${n} QR Code(s) salvos na pasta escolhida — prontos pro pendrive 🎉`);
+    } else {
+      const zip = new JSZip();
+      for (const d of devices) zip.file(nomeUnico(d.nome), await desenharQR(d));
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "qrcodes-staff.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+      msg(`Seu navegador não salva direto na pasta — baixei o ZIP (${devices.length}).`);
+    }
+  }
+
+  async function gerarLote(destino: "zip" | "pasta") {
     const quantidade = parseInt(loteQtd) || 0;
     if (quantidade < 1) {
       setLoteMsg("Informe uma quantidade válida.");
@@ -214,25 +269,89 @@ export default function AparelhosPage() {
         return;
       }
       const devices: { id: number; uuid: string; secure_token: string; nome: string; numero: number }[] = await r.json();
-      const zip = new JSZip();
-      const pad = String(Math.max(...devices.map((d) => d.numero))).length;
-      for (const d of devices) {
-        const blob = await desenharQR(d);
-        zip.file(`${String(d.numero).padStart(pad, "0")}.png`, blob);
+      if (destino === "pasta") {
+        await exportarParaPasta(devices, setLoteMsg);
+      } else {
+        const zip = new JSZip();
+        const pad = String(Math.max(...devices.map((d) => d.numero))).length;
+        for (const d of devices) {
+          const blob = await desenharQR(d);
+          zip.file(`${String(d.numero).padStart(pad, "0")}.png`, blob);
+        }
+        const content = await zip.generateAsync({ type: "blob" });
+        const url = URL.createObjectURL(content);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "qrcodes-staff.zip";
+        a.click();
+        URL.revokeObjectURL(url);
+        setLoteMsg(`${devices.length} QR Codes gerados e baixados (qrcodes-staff.zip).`);
       }
-      const content = await zip.generateAsync({ type: "blob" });
-      const url = URL.createObjectURL(content);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "qrcodes-staff.zip";
-      a.click();
-      URL.revokeObjectURL(url);
-      setLoteMsg(`${devices.length} QR Codes gerados e baixados (qrcodes-staff.zip).`);
       carregar();
     } catch (e) {
-      setLoteMsg(e instanceof Error ? e.message : "Erro ao gerar/baixar");
+      if (e instanceof DOMException && e.name === "AbortError") setLoteMsg("Exportação cancelada (os aparelhos foram criados).");
+      else setLoteMsg(e instanceof Error ? e.message : "Erro ao gerar/exportar");
     } finally {
       setGerandoLote(false);
+    }
+  }
+
+  // --- Seleção em lote (excluir / exportar) ---
+  function toggleSel(id: number) {
+    setSelecionados((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+  const selecionarTodos = () => setSelecionados(new Set(lista.map((d) => d.id)));
+  const selecionarSemUso = () => setSelecionados(new Set(lista.filter((d) => d.status !== "em_uso").map((d) => d.id)));
+  const limparSel = () => setSelecionados(new Set());
+
+  async function excluirSelecionados() {
+    const ids = Array.from(selecionados);
+    if (!ids.length) return;
+    if (!confirm(`Excluir ${ids.length} aparelho(s)? Os que tiverem histórico são mantidos (só dá pra inativar).`)) return;
+    setProcessando(true);
+    setAcaoMsg("");
+    try {
+      const r = await fetch("/api/staff/devices/bulk", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setAcaoMsg(d.error || "Erro ao excluir");
+        return;
+      }
+      const bloq = Array.isArray(d.bloqueados) ? d.bloqueados.length : 0;
+      setAcaoMsg(`${d.excluidos} excluído(s)` + (bloq ? ` · ${bloq} mantido(s) por terem histórico (inative em vez de excluir).` : "."));
+      limparSel();
+      carregar();
+    } catch {
+      setAcaoMsg("Erro ao excluir");
+    } finally {
+      setProcessando(false);
+    }
+  }
+
+  async function exportarSelecionados() {
+    const sel = lista.filter((d) => selecionados.has(d.id));
+    if (!sel.length) {
+      setAcaoMsg("Selecione ao menos um aparelho.");
+      return;
+    }
+    setProcessando(true);
+    setAcaoMsg("");
+    try {
+      await exportarParaPasta(sel, setAcaoMsg);
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") setAcaoMsg("Exportação cancelada.");
+      else setAcaoMsg(e instanceof Error ? e.message : "Erro ao exportar");
+    } finally {
+      setProcessando(false);
     }
   }
 
@@ -310,9 +429,16 @@ export default function AparelhosPage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <button
-            onClick={gerarLote}
+            onClick={() => gerarLote("pasta")}
             disabled={gerandoLote}
             className="bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white px-4 py-2 rounded-lg"
+          >
+            {gerandoLote ? "Gerando..." : "📁 Gerar e salvar na pasta (pendrive)"}
+          </button>
+          <button
+            onClick={() => gerarLote("zip")}
+            disabled={gerandoLote}
+            className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 text-white px-4 py-2 rounded-lg"
           >
             {gerandoLote ? "Gerando..." : "Gerar e baixar ZIP"}
           </button>
@@ -323,12 +449,56 @@ export default function AparelhosPage() {
       {lista.length === 0 ? (
         <p className="bg-slate-800/50 rounded-xl p-8 text-center text-slate-400">Nenhum aparelho cadastrado ainda.</p>
       ) : (
+        <>
+        <div className="bg-slate-800 rounded-xl p-3 mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm font-semibold text-slate-200 mr-1">
+            {selecionados.size > 0 ? `${selecionados.size} selecionado(s)` : "Seleção em lote:"}
+          </span>
+          <button onClick={selecionarTodos} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg">
+            Selecionar todos
+          </button>
+          <button onClick={selecionarSemUso} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg">
+            Todos sem uso
+          </button>
+          <button onClick={limparSel} className="text-xs text-slate-400 hover:text-slate-200 px-2 py-1.5">
+            Limpar
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={exportarSelecionados}
+            disabled={processando || selecionados.size === 0}
+            className="text-sm bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white px-3 py-1.5 rounded-lg"
+          >
+            📁 Exportar QRs → pasta ({selecionados.size})
+          </button>
+          <button
+            onClick={excluirSelecionados}
+            disabled={processando || selecionados.size === 0}
+            className="text-sm bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white px-3 py-1.5 rounded-lg"
+          >
+            🗑 Excluir selecionados ({selecionados.size})
+          </button>
+          {acaoMsg && <span className="w-full text-sm text-slate-300">{acaoMsg}</span>}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {lista.map((d) => (
-            <div key={d.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+            <div
+              key={d.id}
+              className={`bg-slate-800 border rounded-xl p-4 ${
+                selecionados.has(d.id) ? "border-blue-500 ring-1 ring-blue-500" : "border-slate-700"
+              }`}
+            >
               <div className="flex items-start justify-between gap-2 mb-1">
-                <h3 className="font-bold text-white">{d.nome}</h3>
-                <span className={`${corStatus(d.status)} text-white text-xs px-2 py-0.5 rounded`}>
+                <label className="flex items-center gap-2 min-w-0 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selecionados.has(d.id)}
+                    onChange={() => toggleSel(d.id)}
+                    className="w-4 h-4 accent-blue-600 shrink-0"
+                  />
+                  <h3 className="font-bold text-white truncate">{d.nome}</h3>
+                </label>
+                <span className={`${corStatus(d.status)} text-white text-xs px-2 py-0.5 rounded shrink-0`}>
                   {labelStatusDevice(d.status)}
                 </span>
               </div>
@@ -357,6 +527,7 @@ export default function AparelhosPage() {
             </div>
           ))}
         </div>
+        </>
       )}
 
       {qr && (
