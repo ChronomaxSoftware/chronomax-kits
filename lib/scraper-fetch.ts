@@ -191,6 +191,13 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
   const log: string[] = [];
   const progress = opts.onProgress ?? (() => {});
 
+  // ⏱ Medição por fase (TEMPORÁRIO) — pra achar onde os 60s da Vercel vão embora.
+  let tFase = Date.now();
+  const marcar = (nome: string) => {
+    log.push(`⏱ ${nome}: ${((Date.now() - tFase) / 1000).toFixed(1)}s`);
+    tFase = Date.now();
+  };
+
   try {
     log.push("Iniciando sync via API REST (sem Playwright)");
 
@@ -199,13 +206,26 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
     const api = new GestaoAPI(opts.baseUrl);
     const loginRes = await api.login(opts.usuario, opts.senha);
     log.push(`Login OK: ${loginRes.user.name} (${loginRes.user.email})`);
+    marcar("login");
 
-    // 2. Propostas
+    // 2. Propostas — buscar SÓ os status que importam (filtro server-side).
+    // Antes baixava TODAS (~1074, incl. enviada/rejeitada) numa chamada com includeItems
+    // e filtrava no JS → era a fase de ~38s que estourava os 60s da Vercel.
+    // Agora 2 chamadas paralelas já filtradas (aprovada + em_negociacao) → ~1s, sem perder
+    // nenhum evento (os dois status são pedidos explicitamente).
     progress("Buscando propostas", 15);
-    const proposalsRes = await api.getProposals();
-    const allProposals = proposalsRes.proposals || [];
-    const proposals = allProposals.filter((p) => p.status === "aprovada" || p.status === "em_negociacao");
-    log.push(`Propostas: ${allProposals.length} total, ${proposals.length} aprovadas/em_negociacao`);
+    const [aprovadasRes, negociacaoRes] = await Promise.all([
+      api.getProposals({ status: "aprovada" }),
+      api.getProposals({ status: "em_negociacao" }),
+    ]);
+    const proposals = [
+      ...(aprovadasRes.proposals || []),
+      ...(negociacaoRes.proposals || []),
+    ];
+    log.push(
+      `Propostas: ${proposals.length} (aprovada ${aprovadasRes.proposals?.length || 0} + em_negociacao ${negociacaoRes.proposals?.length || 0})`
+    );
+    marcar(`propostas (${proposals.length} filtradas por status)`);
 
     // 3. Classificar modo por evento (a partir dos itens — sem requisição)
     const modoPorId = new Map<string, DeliveryKitMode>();
@@ -229,6 +249,7 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
         log.push(`⚠️ Bulk falhou: ${e instanceof Error ? e.message : e}`);
       }
     }
+    marcar(`equipe bulk (${eventIds.length} eventos)`);
 
     // 5. Detalhado SÓ para eventos OPERATION com equipe (poucos → cabe em 60s)
     const idsDetalhe = eventIds.filter(
@@ -255,6 +276,7 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
       const pct = 40 + Math.round((feito / Math.max(idsDetalhe.length, 1)) * 40);
       progress(`Alocações ${feito}/${idsDetalhe.length}`, pct, feito, idsDetalhe.length);
     }
+    marcar(`alocações detalhadas (${idsDetalhe.length} requisições)`);
 
     // 6. Mapear
     progress("Processando eventos", 85);
@@ -289,6 +311,7 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
       }
     }
 
+    marcar("processar/mapear eventos");
     const eventosKit = eventos.filter((e) => e.tem_entrega_kit);
     log.push(`Total: ${eventos.length} eventos, ${eventosKit.length} com kit`);
     progress("Sync concluído", 90);
