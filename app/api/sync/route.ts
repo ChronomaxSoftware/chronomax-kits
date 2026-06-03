@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: r.erro, diagnostico: r.diagnostico }, { status: 500 });
   }
 
+  const tDb = Date.now();
   setProgresso({ fase: `Salvando ${r.eventos.length} eventos no banco`, porcentagem: 92, atual: 0, total: r.eventos.length });
 
   // ── Fase 1: resolver IDs existentes (poucas queries de leitura) ──
@@ -136,17 +137,33 @@ export async function POST(req: NextRequest) {
   const atribuidoEm = new Date().toISOString();
   const logTec: string[] = []; // diagnóstico TEMPORÁRIO de identificação de técnicos
 
-  // Primeiro: criar eventos novos individualmente (precisamos dos IDs)
+  // Primeiro: criar eventos novos EM LOTE (1 round-trip por chunk em vez de N inserts
+  // sequenciais). O libsql batch devolve lastInsertRowid por statement, na mesma ordem,
+  // então conseguimos remapear numero → id sem leitura extra.
+  const novosEventos: (typeof r.eventos)[number][] = [];
+  const numerosVistos = new Set<string>();
   for (const ev of r.eventos) {
     if (!ev.numero || !ev.nome || !ev.data) continue;
-    if (!eventoByNumero.has(ev.numero)) {
-      const ins = await dbRun(
-        `INSERT INTO eventos (numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, url_gestao, tem_kit, local_prova, url_site_oficial, tipo_kit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ev.numero, ev.nome, ev.data, ev.cidade, ev.uf, ev.qtd_celulares, ev.dias_entrega, ev.qtd_atletas, ev.nivel, ev.url, ev.tem_entrega_kit ? 1 : 0, ev.local_prova, ev.url_site_oficial, ev.tipo_kit
-      );
-      eventoByNumero.set(ev.numero, ins.lastInsertRowid as unknown as number);
-      importados++;
+    if (eventoByNumero.has(ev.numero) || numerosVistos.has(ev.numero)) continue;
+    numerosVistos.add(ev.numero);
+    novosEventos.push(ev);
+  }
+  if (novosEventos.length > 0) {
+    const insertStmts = novosEventos.map((ev) => ({
+      sql: `INSERT INTO eventos (numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, url_gestao, tem_kit, local_prova, url_site_oficial, tipo_kit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      args: [ev.numero, ev.nome, ev.data, ev.cidade, ev.uf, ev.qtd_celulares, ev.dias_entrega, ev.qtd_atletas, ev.nivel, ev.url, ev.tem_entrega_kit ? 1 : 0, ev.local_prova, ev.url_site_oficial, ev.tipo_kit] as any[],
+    }));
+    const resultados: Awaited<ReturnType<typeof dbBatch>> = [];
+    for (let i = 0; i < insertStmts.length; i += 200) {
+      const res = await dbBatch(insertStmts.slice(i, i + 200));
+      resultados.push(...res);
     }
+    novosEventos.forEach((ev, idx) => {
+      const rid = resultados[idx]?.lastInsertRowid;
+      if (rid != null) eventoByNumero.set(ev.numero!, Number(rid));
+    });
+    importados = novosEventos.length;
   }
 
   // Agora montar batch de UPDATEs + INSERTs auxiliares
@@ -248,6 +265,7 @@ export async function POST(req: NextRequest) {
     tecnicosNovos,
     diagnostico: [
       ...(r.diagnostico || []),
+      `⏱ banco (gravação ${allStmts.length} ops + ${importados} inserts): ${((Date.now() - tDb) / 1000).toFixed(1)}s`,
       "── Diagnóstico de técnicos (TEMPORÁRIO) ──",
       ...logTec,
     ],
