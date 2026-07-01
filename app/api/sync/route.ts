@@ -245,27 +245,75 @@ export async function POST(req: NextRequest) {
     await dbBatch(allStmts.slice(i, i + BATCH_SIZE));
   }
 
+  // ── Fase 4: reconciliar — apagar eventos que não estão mais entre os APROVADOS ──
+  // O Gestão é a fonte da verdade: todo evento no banco cujo número não voltou neste
+  // sync (saiu de aprovado → em negociação, foi cancelado ou deletado no Gestão) é
+  // removido. TRAVA DE SEGURANÇA: se vier ZERO aprovados (provável falha transitória da
+  // API), NÃO apaga nada pra não zerar o banco por engano.
+  const numerosAprovados = new Set(
+    r.eventos.filter((ev) => ev.numero && ev.nome && ev.data).map((ev) => ev.numero as string)
+  );
+  let removidos = 0;
+  const reconLog: string[] = [];
+  if (numerosAprovados.size === 0) {
+    reconLog.push("⚠️ Reconciliação PULADA: zero eventos aprovados retornados (trava de segurança — banco preservado)");
+  } else {
+    // eventosExistentes = snapshot do banco ANTES dos inserts deste sync; os recém-inseridos
+    // são todos aprovados, então basta olhar os que já existiam.
+    const staleIds = eventosExistentes.filter((e) => !numerosAprovados.has(e.numero)).map((e) => e.id);
+    if (staleIds.length > 0) {
+      setProgresso({ fase: `Removendo ${staleIds.length} eventos que saíram do Gestão`, porcentagem: 98 });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const delStmts: { sql: string; args: any[] }[] = [];
+      for (let i = 0; i < staleIds.length; i += 100) {
+        const chunk = staleIds.slice(i, i + 100);
+        const ph = chunk.map(() => "?").join(",");
+        // Filhas com cascade lógico (libsql/Turso não força FK, então apagamos à mão)
+        delStmts.push({ sql: `DELETE FROM evento_tecnicos WHERE evento_id IN (${ph})`, args: [...chunk] });
+        delStmts.push({ sql: `DELETE FROM evento_produtos WHERE evento_id IN (${ph})`, args: [...chunk] });
+        delStmts.push({ sql: `DELETE FROM evento_itens_gestao WHERE evento_id IN (${ph})`, args: [...chunk] });
+        delStmts.push({ sql: `DELETE FROM evento_equipe_gestao WHERE evento_id IN (${ph})`, args: [...chunk] });
+        delStmts.push({ sql: `DELETE FROM evento_kits WHERE evento_id IN (${ph})`, args: [...chunk] });
+        // Referências que só desvinculam (equivalente a ON DELETE SET NULL)
+        delStmts.push({ sql: `UPDATE celulares_chip SET evento_id = NULL WHERE evento_id IN (${ph})`, args: [...chunk] });
+        delStmts.push({ sql: `UPDATE equipamentos_alugados SET evento_id = NULL WHERE evento_id IN (${ph})`, args: [...chunk] });
+        delStmts.push({ sql: `UPDATE staff_assignments SET event_id = NULL WHERE event_id IN (${ph})`, args: [...chunk] });
+        // Por fim, o próprio evento
+        delStmts.push({ sql: `DELETE FROM eventos WHERE id IN (${ph})`, args: [...chunk] });
+      }
+      for (let i = 0; i < delStmts.length; i += BATCH_SIZE) {
+        await dbBatch(delStmts.slice(i, i + BATCH_SIZE));
+      }
+      removidos = staleIds.length;
+      reconLog.push(`🗑️ Reconciliação: ${removidos} eventos removidos (não estão mais aprovados no Gestão)`);
+    } else {
+      reconLog.push("Reconciliação: nenhum evento para remover (banco já espelha os aprovados)");
+    }
+  }
+
   // ── Finalizar ──
   await dbRun(
     `UPDATE sync_logs SET status = 'sucesso', mensagem = ?, eventos_encontrados = ?, eventos_kit = ?, eventos_importados = ?, finalizado_em = CURRENT_TIMESTAMP WHERE id = ?`,
-    `${importados} novos, ${atualizados} atualizados`,
+    `${importados} novos, ${atualizados} atualizados, ${removidos} removidos`,
     r.eventosEncontrados,
     r.eventosKit,
     importados + atualizados,
     logId
   );
 
-  finalizarSync(true, `${importados} novos · ${atualizados} atualizados`);
+  finalizarSync(true, `${importados} novos · ${atualizados} atualizados · ${removidos} removidos`);
   return NextResponse.json({
     ok: true,
     eventosEncontrados: r.eventosEncontrados,
     eventosKit: r.eventosKit,
     importados,
     atualizados,
+    removidos,
     tecnicosNovos,
     diagnostico: [
       ...(r.diagnostico || []),
       `⏱ banco (gravação ${allStmts.length} ops + ${importados} inserts): ${((Date.now() - tDb) / 1000).toFixed(1)}s`,
+      ...reconLog,
       "── Diagnóstico de técnicos (TEMPORÁRIO) ──",
       ...logTec,
     ],

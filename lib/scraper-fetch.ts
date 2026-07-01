@@ -208,24 +208,17 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
     log.push(`Login OK: ${loginRes.user.name} (${loginRes.user.email})`);
     marcar("login");
 
-    // 2. Propostas — buscar SÓ os status que importam (filtro server-side).
-    // Antes baixava TODAS (~1074, incl. enviada/rejeitada) numa chamada com includeItems
-    // e filtrava no JS → era a fase de ~38s que estourava os 60s da Vercel.
-    // Agora 2 chamadas paralelas já filtradas (aprovada + em_negociacao) → ~1s, sem perder
-    // nenhum evento (os dois status são pedidos explicitamente).
+    // 2. Propostas — buscar SÓ os eventos APROVADOS (filtro server-side).
+    // O chronomax-kits espelha exatamente os eventos aprovados do Gestão: eventos
+    // "em negociação" NÃO entram (e, se um evento sair de aprovado, some do banco na
+    // reconciliação do sync/route.ts). Filtro por status também mantém a chamada rápida
+    // (~1s) — antes baixava TODAS as ~1074 propostas e filtrava no JS (fase de ~38s que
+    // estourava os 60s da Vercel).
     progress("Buscando propostas", 15);
-    const [aprovadasRes, negociacaoRes] = await Promise.all([
-      api.getProposals({ status: "aprovada" }),
-      api.getProposals({ status: "em_negociacao" }),
-    ]);
-    const proposals = [
-      ...(aprovadasRes.proposals || []),
-      ...(negociacaoRes.proposals || []),
-    ];
-    log.push(
-      `Propostas: ${proposals.length} (aprovada ${aprovadasRes.proposals?.length || 0} + em_negociacao ${negociacaoRes.proposals?.length || 0})`
-    );
-    marcar(`propostas (${proposals.length} filtradas por status)`);
+    const aprovadasRes = await api.getProposals({ status: "aprovada" });
+    const proposals = [...(aprovadasRes.proposals || [])];
+    log.push(`Propostas aprovadas: ${proposals.length}`);
+    marcar(`propostas (${proposals.length} aprovadas)`);
 
     // 3. Classificar modo por evento (a partir dos itens — sem requisição)
     const modoPorId = new Map<string, DeliveryKitMode>();
