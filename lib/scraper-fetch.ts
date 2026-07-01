@@ -216,9 +216,15 @@ export async function scrapeGestao(opts: ScrapeOptions): Promise<ScrapeResult> {
     // estourava os 60s da Vercel).
     progress("Buscando propostas", 15);
     const aprovadasRes = await api.getProposals({ status: "aprovada" });
-    const proposals = [...(aprovadasRes.proposals || [])];
-    log.push(`Propostas aprovadas: ${proposals.length}`);
-    marcar(`propostas (${proposals.length} aprovadas)`);
+    // Descarta `pedido_avulso` (frete, chip avulso, etc.): são aprovados mas NÃO são
+    // eventos esportivos — não aparecem na tela de convocação/grupos do Gestão nem
+    // precisam de kit. Os tipos reais (corrida_rua, triathlon, trail_run, ciclismo,
+    // natacao, multiesportivo) passam normalmente.
+    const todasAprovadas = aprovadasRes.proposals || [];
+    const proposals = todasAprovadas.filter((p) => p.eventType !== "pedido_avulso");
+    const avulsosDescartados = todasAprovadas.length - proposals.length;
+    log.push(`Propostas aprovadas: ${proposals.length} (${avulsosDescartados} pedido_avulso descartados)`);
+    marcar(`propostas (${proposals.length} aprovadas, sem avulsos)`);
 
     // 3. Classificar modo por evento (a partir dos itens — sem requisição)
     const modoPorId = new Map<string, DeliveryKitMode>();
