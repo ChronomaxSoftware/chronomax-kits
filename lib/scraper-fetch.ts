@@ -11,6 +11,7 @@
 import { GestaoAPI, GestaoProposal, GestaoAllocation } from "./gestao-api";
 import type { EventoExtraido } from "./parser";
 import { classificarKit, tipoKitDeModo, DeliveryKitMode } from "./kit-mode";
+import { parseCidadeUf } from "./cidade-uf";
 
 export type ScrapeResult = {
   ok: boolean;
@@ -35,25 +36,6 @@ type BulkTech = { id: string; name: string; status: string; funcao: string | nul
 type TecnicoGestao = EventoExtraido["tecnicos_gestao"][number];
 
 // ── Helpers de mapeamento ─────────────────────────────────────────────
-
-const UFS_BR = new Set(
-  "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split(" ")
-);
-
-/**
- * Separa cidade e UF. Aceita "CIDADE - SP", "CIDADE/SP" e "CIDADE/SP." (só UFs reais).
- * Sem sigla, "São Paulo" vira SP e "Rio de Janeiro" vira RJ.
- */
-export function parseCidadeUf(raw: string | null): { cidade: string | null; uf: string | null } {
-  if (!raw || !raw.trim()) return { cidade: null, uf: null };
-  const t = raw.trim().replace(/[.\s]+$/, "");
-  const m = t.match(/^(.+?)\s*[-/]\s*([A-Za-z]{2})$/);
-  if (m && UFS_BR.has(m[2].toUpperCase())) return { cidade: m[1].trim(), uf: m[2].toUpperCase() };
-  const n = t.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
-  if (n === "SAO PAULO") return { cidade: t, uf: "SP" };
-  if (n === "RIO DE JANEIRO") return { cidade: t, uf: "RJ" };
-  return { cidade: raw.trim(), uf: null };
-}
 
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
