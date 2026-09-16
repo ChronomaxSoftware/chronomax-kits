@@ -34,6 +34,17 @@ type Evento = {
   produtos: { id: number; nome: string; quantidade: number }[];
 };
 
+const SEM_UF = "__sem_uf__";
+
+/** Normaliza para busca: sem acento, minusculo, sem espacos nas pontas. */
+function normalizar(s: string | null | undefined) {
+  return (s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export default function HomePage() {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -47,6 +58,8 @@ export default function HomePage() {
   const [diagnostico, setDiagnostico] = useState<string[] | null>(null);
   const [progresso, setProgresso] = useState<{ fase: string; porcentagem: number; atual: number; total: number } | null>(null);
   const [modo, setModo] = useState<"lista32" | "semana">("lista32");
+  const [ufsSel, setUfsSel] = useState<string[]>([]);
+  const [cidadeBusca, setCidadeBusca] = useState("");
 
   // Enquanto está sincronizando, faz polling de /api/sync/progress a cada 500ms
   useEffect(() => {
@@ -155,9 +168,54 @@ export default function HomePage() {
     }
   }
 
+  // ---- Filtro por estado/cidade. Nada marcado = mostra tudo, igual antes. ----
+  const opcoesUf = useMemo(() => {
+    const cont = new Map<string, number>();
+    for (const e of eventos) {
+      const k = e.uf ? e.uf.trim().toUpperCase() : SEM_UF;
+      cont.set(k, (cont.get(k) || 0) + 1);
+    }
+    return Array.from(cont.entries())
+      .sort((a, b) =>
+        a[0] === SEM_UF ? 1 : b[0] === SEM_UF ? -1 : a[0].localeCompare(b[0])
+      )
+      .map(([uf, qtd]) => ({ uf, qtd }));
+  }, [eventos]);
+
+  // Sugestoes de cidade seguem as UFs marcadas (se houver alguma).
+  const opcoesCidade = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of eventos) {
+      if (!e.cidade) continue;
+      if (ufsSel.length > 0 && !ufsSel.includes(e.uf ? e.uf.trim().toUpperCase() : SEM_UF)) continue;
+      set.add(e.cidade.trim());
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [eventos, ufsSel]);
+
+  const eventosFiltrados = useMemo(() => {
+    const alvo = normalizar(cidadeBusca);
+    if (ufsSel.length === 0 && !alvo) return eventos;
+    return eventos.filter((e) => {
+      if (ufsSel.length > 0 && !ufsSel.includes(e.uf ? e.uf.trim().toUpperCase() : SEM_UF)) return false;
+      if (alvo && !normalizar(e.cidade).includes(alvo)) return false;
+      return true;
+    });
+  }, [eventos, ufsSel, cidadeBusca]);
+
+  const filtroAtivo = ufsSel.length > 0 || cidadeBusca.trim() !== "";
+
+  function alternarUf(uf: string) {
+    setUfsSel((atual) => (atual.includes(uf) ? atual.filter((u) => u !== uf) : [...atual, uf]));
+  }
+  function limparFiltros() {
+    setUfsSel([]);
+    setCidadeBusca("");
+  }
+
   const eventosPorSemana = useMemo(() => {
     const mapa = new Map<string, Evento[]>();
-    for (const e of eventos) {
+    for (const e of eventosFiltrados) {
       const d = parseDataBR(e.data);
       if (!d) continue;
       const k = chaveSemana(d);
@@ -165,7 +223,7 @@ export default function HomePage() {
       mapa.get(k)!.push(e);
     }
     return mapa;
-  }, [eventos]);
+  }, [eventosFiltrados]);
 
   const semanas = useMemo(() => Array.from(eventosPorSemana.keys()).sort(), [eventosPorSemana]);
 
@@ -175,7 +233,7 @@ export default function HomePage() {
     const ref = new Date();
     const porSemana = new Map<string, Evento[]>();
     const semData: Evento[] = [];
-    for (const e of eventos) {
+    for (const e of eventosFiltrados) {
       const d = parseDataBR(e.data);
       if (!d) {
         semData.push(e);
@@ -194,7 +252,7 @@ export default function HomePage() {
     }
     const total = chaves.reduce((n, k) => n + porSemana.get(k)!.length, 0);
     return { porSemana, chaves, semData, total };
-  }, [eventos]);
+  }, [eventosFiltrados]);
 
   const semanaCorrente = chaveSemana(semanaAtual);
   const eventosDaSemana = eventosPorSemana.get(semanaCorrente) || [];
@@ -375,6 +433,61 @@ export default function HomePage() {
         </button>
       </div>
 
+      {/* Filtro por estado/cidade — nada marcado mostra tudo, igual antes */}
+      <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-3 mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-400 shrink-0 w-14">Estado:</span>
+          <button
+            onClick={() => setUfsSel([])}
+            className={`px-2.5 py-1 rounded-full text-xs ${
+              ufsSel.length === 0 ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            Todos <span className="opacity-60">{eventos.length}</span>
+          </button>
+          {opcoesUf.map(({ uf, qtd }) => (
+            <button
+              key={uf}
+              onClick={() => alternarUf(uf)}
+              className={`px-2.5 py-1 rounded-full text-xs ${
+                ufsSel.includes(uf) ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+              }`}
+              title={uf === SEM_UF ? "Eventos sem UF cadastrada" : `Eventos em ${uf}`}
+            >
+              {uf === SEM_UF ? "sem UF" : uf} <span className="opacity-60">{qtd}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <span className="text-xs text-slate-400 shrink-0 w-14">Cidade:</span>
+          <input
+            list="lista-cidades"
+            value={cidadeBusca}
+            onChange={(ev) => setCidadeBusca(ev.target.value)}
+            placeholder="todas as cidades"
+            className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-100 placeholder:text-slate-500 w-56"
+          />
+          <datalist id="lista-cidades">
+            {opcoesCidade.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          {filtroAtivo && (
+            <>
+              <span className="text-xs text-slate-300">
+                mostrando {eventosFiltrados.length} de {eventos.length} evento(s)
+              </span>
+              <button
+                onClick={limparFiltros}
+                className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded-lg"
+              >
+                Limpar filtros
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       {modo === "semana" ? (
         <>
           <div className="bg-slate-800 rounded-xl p-3 sm:p-4 mb-6 flex items-center justify-between gap-2">
@@ -405,7 +518,17 @@ export default function HomePage() {
 
           {eventosDaSemana.length === 0 ? (
             <div className="text-center py-12 text-slate-400 bg-slate-800/50 rounded-xl">
-              <p className="mb-3">Nenhum evento nesta semana.</p>
+              <p className="mb-3">
+                Nenhum evento nesta semana{filtroAtivo ? " com o filtro atual" : ""}.
+              </p>
+              {filtroAtivo && (
+                <button
+                  onClick={limparFiltros}
+                  className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg mb-3"
+                >
+                  Limpar filtros
+                </button>
+              )}
               {semanas.length > 0 && (
                 <div className="flex flex-wrap gap-2 justify-center mt-4">
                   <span className="text-xs text-slate-500">Semanas com eventos:</span>
@@ -435,13 +558,25 @@ export default function HomePage() {
         </>
       ) : janela32.total === 0 && janela32.semData.length === 0 ? (
         <div className="text-center py-12 text-slate-400 bg-slate-800/50 rounded-xl">
-          <p>Nenhum evento de kit nas próximas {JANELA_SEMANAS} semanas.</p>
+          <p>
+            Nenhum evento de kit nas próximas {JANELA_SEMANAS} semanas
+            {filtroAtivo ? " com o filtro atual" : ""}.
+          </p>
+          {filtroAtivo && (
+            <button
+              onClick={limparFiltros}
+              className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-lg mt-3"
+            >
+              Limpar filtros
+            </button>
+          )}
           <p className="text-xs text-slate-500 mt-2">Use &quot;Por semana&quot; para ver eventos passados.</p>
         </div>
       ) : (
         <>
           <p className="text-xs text-slate-500 mb-4">
             {janela32.total} evento(s) de hoje até {JANELA_SEMANAS} semanas à frente · ordem crescente
+            {filtroAtivo ? " · filtrado" : ""}
           </p>
           {janela32.chaves.map((k) => {
             const [y, mo, dy] = k.split("-").map(Number);
