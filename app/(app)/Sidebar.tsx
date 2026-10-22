@@ -11,11 +11,30 @@ const LINKS = [
   { href: "/tecnicos", label: "Técnicos" },
   { href: "/produtos", label: "Produtos & Estoque" },
   { href: "/bases", label: "Estoque por base" },
-  { href: "/celulares-chip", label: "Celulares com chip" },
+  { href: "/equipamentos", label: "Inventário de equipamentos" },
+  { href: "/celulares-chip", label: "Celulares com chip (legado)" },
   { href: "/alugados", label: "Alugados" },
   { href: "/staff", label: "Controle de Staff" },
   { href: "/config", label: "Configurações" },
 ];
+
+/** Logo oficial + nome. `compacta` = versão da barra de topo do mobile. */
+function Marca({ compacta = false }: { compacta?: boolean }) {
+  return (
+    <div className="flex items-center gap-2.5 leading-tight">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/logo-chronomax.jpg"
+        alt=""
+        className={`${compacta ? "h-7 w-7" : "h-9 w-9"} rounded-lg shrink-0`}
+      />
+      <div>
+        <div className={`${compacta ? "text-base" : "text-lg"} font-bold text-white`}>ChronoMax</div>
+        <div className="text-xs text-slate-400">Gestão de Kits</div>
+      </div>
+    </div>
+  );
+}
 
 export default function Sidebar({ name, username }: { name: string; username: string }) {
   const [aberto, setAberto] = useState(false);
@@ -32,8 +51,8 @@ export default function Sidebar({ name, username }: { name: string; username: st
           key={l.href}
           href={l.href}
           onClick={() => setAberto(false)}
-          className={`block px-3 py-2 rounded-lg ${
-            ativo(l.href) ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800"
+          className={`block px-3 py-2 rounded-lg text-sm transition-colors ${
+            ativo(l.href) ? "bg-blue-600 text-white font-medium" : "text-slate-300 hover:bg-slate-800 hover:text-white"
           }`}
         >
           {l.label}
@@ -65,17 +84,13 @@ export default function Sidebar({ name, username }: { name: string; username: st
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <div className="leading-tight">
-          <span className="text-base font-bold text-white">ChronoMax</span>
-          <span className="text-xs text-slate-400 ml-1">Kits</span>
-        </div>
+        <Marca compacta />
       </header>
 
       {/* Barra lateral fixa — só no desktop */}
       <aside className="hidden lg:flex w-64 shrink-0 bg-slate-950 border-r border-slate-800 p-4 flex-col print:hidden">
         <div className="mb-6">
-          <h1 className="text-xl font-bold text-white">ChronoMax</h1>
-          <p className="text-xs text-slate-400">Kits</p>
+          <Marca />
         </div>
         {nav}
         {rodape}
@@ -87,10 +102,7 @@ export default function Sidebar({ name, username }: { name: string; username: st
           <div className="absolute inset-0 bg-black/60" onClick={() => setAberto(false)} />
           <div className="absolute inset-y-0 left-0 w-64 max-w-[82%] bg-slate-950 border-r border-slate-800 p-4 flex flex-col">
             <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-xl font-bold text-white">ChronoMax</h1>
-                <p className="text-xs text-slate-400">Kits</p>
-              </div>
+              <Marca />
               <button
                 onClick={() => setAberto(false)}
                 aria-label="Fechar menu"

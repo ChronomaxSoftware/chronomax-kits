@@ -34,7 +34,11 @@ export default function TecnicosPage() {
     e.preventDefault();
     setErro("");
     if (!nome.trim()) return;
-    const body = { nome, telefone, login, ...(senha ? { senha } : {}), ativo: 1 };
+    if (senha && senha.length < 8) {
+      setErro("A senha deve ter pelo menos 8 caracteres.");
+      return;
+    }
+    const body ={ nome, telefone, login, ...(senha ? { senha } : {}), ativo: 1 };
     const r = editando
       ? await fetch(`/api/tecnicos/${editando.id}`, {
           method: "PUT",
@@ -83,8 +87,9 @@ export default function TecnicosPage() {
     <div className="max-w-3xl">
       <h1 className="text-2xl font-bold mb-2">Técnicos</h1>
       <p className="text-slate-400 text-sm mb-6">
-        Cadastre os técnicos. Definindo <strong>login e senha</strong>, o técnico pode entrar no portal dele
-        (pela tela de login) e confirmar o recebimento do material dos eventos atribuídos a ele.
+        Cadastre os técnicos. Definindo uma <strong>senha</strong>, o técnico entra no portal usando o{" "}
+        <strong>telefone</strong> como login (ou um login manual, se você informar) e confirma o recebimento do
+        material dos eventos atribuídos a ele.
       </p>
 
       <form onSubmit={salvar} className="bg-slate-800 rounded-xl p-4 mb-6 space-y-3">
@@ -108,13 +113,13 @@ export default function TecnicosPage() {
             />
           </div>
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Login do portal (opcional)</label>
+            <label className="block text-xs text-slate-400 mb-1">Login do portal (em branco = telefone)</label>
             <input
               value={login}
               onChange={(e) => setLogin(e.target.value)}
               autoComplete="off"
               className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-              placeholder="ex: joao.silva"
+              placeholder="Automático pelo telefone"
             />
           </div>
           <div>
@@ -128,7 +133,7 @@ export default function TecnicosPage() {
               onChange={(e) => setSenha(e.target.value)}
               autoComplete="new-password"
               className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-              placeholder={editando && editando.tem_senha ? "Deixe em branco para manter" : "Defina uma senha"}
+              placeholder={editando && editando.tem_senha ? "Deixe em branco para manter" : "Mínimo de 8 caracteres"}
             />
           </div>
         </div>

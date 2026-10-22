@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dbRun, dbGet, dbAll, initDB } from "@/lib/db";
+import { dbRun, dbGet, dbAll, dbBatch, initDB } from "@/lib/db";
+import { statementsApagarEventos } from "@/lib/eventos-remocao";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
@@ -116,6 +117,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
   const { id } = await params;
-  await dbRun("DELETE FROM eventos WHERE id = ?", id);
+  const eventoId = Number(id);
+  if (!Number.isInteger(eventoId) || eventoId <= 0) {
+    return NextResponse.json({ error: "Evento inválido" }, { status: 400 });
+  }
+  await dbBatch(statementsApagarEventos([eventoId], "Prova excluída manualmente"));
   return NextResponse.json({ ok: true });
 }

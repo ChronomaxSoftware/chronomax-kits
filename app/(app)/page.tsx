@@ -60,6 +60,7 @@ export default function HomePage() {
   const [modo, setModo] = useState<"lista32" | "semana">("lista32");
   const [ufsSel, setUfsSel] = useState<string[]>([]);
   const [cidadeBusca, setCidadeBusca] = useState("");
+  const [provaBusca, setProvaBusca] = useState("");
 
   // Enquanto está sincronizando, faz polling de /api/sync/progress a cada 500ms
   useEffect(() => {
@@ -195,15 +196,18 @@ export default function HomePage() {
 
   const eventosFiltrados = useMemo(() => {
     const alvo = normalizar(cidadeBusca);
-    if (ufsSel.length === 0 && !alvo) return eventos;
+    const prova = normalizar(provaBusca);
+    if (ufsSel.length === 0 && !alvo && !prova) return eventos;
     return eventos.filter((e) => {
       if (ufsSel.length > 0 && !ufsSel.includes(e.uf ? e.uf.trim().toUpperCase() : SEM_UF)) return false;
       if (alvo && !normalizar(e.cidade).includes(alvo)) return false;
+      if (prova && ![e.numero, e.nome, e.cidade, e.uf, e.data].some((v) => normalizar(String(v ?? "")).includes(prova)))
+        return false;
       return true;
     });
-  }, [eventos, ufsSel, cidadeBusca]);
+  }, [eventos, ufsSel, cidadeBusca, provaBusca]);
 
-  const filtroAtivo = ufsSel.length > 0 || cidadeBusca.trim() !== "";
+  const filtroAtivo = ufsSel.length > 0 || cidadeBusca.trim() !== "" || provaBusca.trim() !== "";
 
   function alternarUf(uf: string) {
     setUfsSel((atual) => (atual.includes(uf) ? atual.filter((u) => u !== uf) : [...atual, uf]));
@@ -211,6 +215,7 @@ export default function HomePage() {
   function limparFiltros() {
     setUfsSel([]);
     setCidadeBusca("");
+    setProvaBusca("");
   }
 
   const eventosPorSemana = useMemo(() => {
@@ -457,6 +462,17 @@ export default function HomePage() {
               {uf === SEM_UF ? "sem UF" : uf} <span className="opacity-60">{qtd}</span>
             </button>
           ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <label htmlFor="buscar-prova" className="text-xs text-slate-400 shrink-0 w-14">Prova:</label>
+          <input
+            id="buscar-prova"
+            type="search"
+            value={provaBusca}
+            onChange={(ev) => setProvaBusca(ev.target.value)}
+            placeholder="número, nome, cidade, UF ou data"
+            className="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-100 placeholder:text-slate-500 w-full sm:w-80"
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <span className="text-xs text-slate-400 shrink-0 w-14">Cidade:</span>

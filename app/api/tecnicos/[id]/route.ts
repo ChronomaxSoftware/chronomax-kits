@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { dbRun, initDB } from "@/lib/db";
+import { dbGet, dbRun, initDB } from "@/lib/db";
+import { resolverLoginTecnico, validarSenhaTecnico } from "@/lib/login-tecnico";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
   const { id } = await params;
   const body = await req.json();
+
+  const erroSenha = validarSenhaTecnico(body.senha);
+  if (erroSenha) return NextResponse.json({ error: erroSenha }, { status: 400 });
+
+  const atual = await dbGet<{ telefone: string | null; tem_senha: number }>(
+    "SELECT telefone, (senha_hash IS NOT NULL AND senha_hash != '') AS tem_senha FROM tecnicos WHERE id = ?",
+    id
+  );
+  if (!atual) return NextResponse.json({ error: "Técnico não encontrado" }, { status: 404 });
 
   const updates: string[] = [];
   const vals: unknown[] = [];
@@ -21,9 +31,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     updates.push("ativo = ?");
     vals.push(body.ativo ? 1 : 0);
   }
-  if ("login" in body) {
+  if ("login" in body || body.senha) {
+    // Sem login manual, quem tem (ou vai ter) senha usa o telefone como login
+    const telefone = "telefone" in body ? body.telefone : atual.telefone;
+    const temSenha = !!body.senha || !!atual.tem_senha;
+    const login = resolverLoginTecnico(body.login, telefone, temSenha);
+    if (temSenha && !login) {
+      return NextResponse.json(
+        { error: "Informe um login ou um telefone válido (DDD + número) para o acesso ao portal" },
+        { status: 400 }
+      );
+    }
     updates.push("login = ?");
-    vals.push(body.login?.trim() || null);
+    vals.push(login);
   }
   // Só troca a senha quando vier preenchida (em branco mantém a atual)
   if (body.senha) {
@@ -35,8 +55,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   vals.push(id);
   try {
     await dbRun(`UPDATE tecnicos SET ${updates.join(", ")} WHERE id = ?`, ...vals);
-  } catch {
-    return NextResponse.json({ error: "Esse login já está em uso por outro técnico" }, { status: 400 });
+  } catch (err) {
+    if (String(err).includes("UNIQUE")) {
+      return NextResponse.json({ error: "Esse login (ou telefone) já está em uso por outro técnico" }, { status: 409 });
+    }
+    console.error("[tecnicos] erro ao atualizar", err);
+    return NextResponse.json({ error: "Não foi possível salvar o técnico" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
 }

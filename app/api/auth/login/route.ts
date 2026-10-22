@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { dbGet, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { candidatosLogin } from "@/lib/login-tecnico";
 
 export async function POST(req: NextRequest) {
   await initDB();
@@ -27,10 +28,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, name: user.name, role: "admin" });
   }
 
-  // 2. Tenta técnico (tabela tecnicos, colunas login/senha_hash)
+  // 2. Tenta técnico (tabela tecnicos, colunas login/senha_hash). Aceita o telefone
+  // em qualquer formato — "(51) 99999-0000" casa com o login "51999990000".
+  const candidatos = candidatosLogin(String(username));
   const tec = await dbGet<{ id: number; login: string; senha_hash: string | null; nome: string }>(
-    "SELECT id, login, senha_hash, nome FROM tecnicos WHERE login = ?",
-    username
+    `SELECT id, login, senha_hash, nome FROM tecnicos
+     WHERE login IN (${candidatos.map(() => "?").join(",")}) AND ativo = 1
+     ORDER BY CASE WHEN login = ? THEN 0 ELSE 1 END LIMIT 1`,
+    ...candidatos,
+    candidatos[0]
   );
   if (tec && tec.senha_hash && bcrypt.compareSync(password, tec.senha_hash)) {
     const session = await getSession();
