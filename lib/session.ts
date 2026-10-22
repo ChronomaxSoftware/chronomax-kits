@@ -7,6 +7,8 @@ export type SessionData = {
   name?: string;
   role?: "admin" | "tecnico";
   tecnicoId?: number;
+  /** Admin entrou com a senha inicial do seed — o painel mostra aviso para trocar. */
+  senhaPadrao?: boolean;
   isLoggedIn: boolean;
 };
 

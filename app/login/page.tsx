@@ -61,10 +61,6 @@ export default function LoginPage() {
         >
           {carregando ? "Entrando..." : "Entrar"}
         </button>
-
-        <p className="text-xs text-slate-500 mt-6 text-center">
-          Usuários iniciais: <strong>admin</strong> e <strong>lider</strong> — senha: <strong>chronomax</strong>
-        </p>
       </form>
     </div>
   );
