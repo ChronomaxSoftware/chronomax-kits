@@ -23,12 +23,13 @@ export async function GET(req: NextRequest) {
     where += " AND e.tipo = ?";
     params.push(tipo);
   }
-  if (status === "disponivel" || status === "alocado" || status === "manutencao") {
+  if (["disponivel", "alocado", "em_campo", "manutencao"].includes(status)) {
     where += " AND e.status = ?";
     params.push(status);
   }
   const rows = await dbAll(
-    `SELECT e.*, b.nome AS base_nome, b.uf AS base_uf, v.numero AS evento_numero, v.nome AS evento_nome, v.data AS evento_data
+    `SELECT e.*, b.nome AS base_nome, b.uf AS base_uf, v.numero AS evento_numero, v.nome AS evento_nome, v.data AS evento_data,
+            COALESCE('#' || v.numero || ' · ' || v.nome, e.evento_ref) AS prova_ref
      FROM equipamentos e
      LEFT JOIN bases b ON b.id = e.base_id
      LEFT JOIN eventos v ON v.id = e.evento_id

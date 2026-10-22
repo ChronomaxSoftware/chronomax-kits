@@ -2,9 +2,10 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { TIPOS_EQUIPAMENTO } from "@/lib/equipamentos";
+import { TIPOS_EQUIPAMENTO, TipoEquipamento, tipoDeProduto } from "@/lib/equipamentos";
 import { normalizarNome } from "@/lib/tecnico-match";
-import { Aviso, Indicador, botaoPrimario, campo } from "@/components/equipamentos/ui";
+import ConferenciaRetorno from "@/components/equipamentos/ConferenciaRetorno";
+import { Aviso, EVENTO_EQUIPAMENTOS_MUDOU, botaoPrimario, campo } from "@/components/equipamentos/ui";
 
 type Equipamento = {
   id: number;
@@ -15,8 +16,37 @@ type Equipamento = {
   status: string;
   evento_id: number | null;
   base_nome: string | null;
+  saida_em: string | null;
+  saida_por: string | null;
 };
-type Evento = { id: number; numero: string; nome: string; data: string; cidade: string | null; uf: string | null };
+type Evento = {
+  id: number;
+  numero: string;
+  nome: string;
+  data: string;
+  cidade: string | null;
+  uf: string | null;
+  produtos: { id: number; nome: string; quantidade: number }[];
+};
+
+function Secao({ titulo, subtitulo, children, acao }: { titulo: string; subtitulo?: string; children: React.ReactNode; acao?: React.ReactNode }) {
+  return (
+    <section className="bg-slate-800 rounded-xl overflow-hidden">
+      <div className="p-4 border-b border-slate-700 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">{titulo}</h2>
+          {subtitulo && <p className="text-xs text-slate-400">{subtitulo}</p>}
+        </div>
+        {acao}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function infoEquip(e: Equipamento) {
+  return `${e.tipo}${e.numero_chip || e.numero_serie ? ` · ${e.numero_chip || e.numero_serie}` : ""}`;
+}
 
 export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -26,7 +56,8 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
   const [lista, setLista] = useState<Equipamento[]>([]);
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState("");
-  const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
+  const [paraAdicionar, setParaAdicionar] = useState<Set<number>>(new Set());
+  const [paraSair, setParaSair] = useState<Set<number>>(new Set());
   const [erro, setErro] = useState("");
   const [ok, setOk] = useState("");
   const [ocupado, setOcupado] = useState(false);
@@ -49,70 +80,90 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
     carregar();
   }, [carregar]);
 
-  const alocados = useMemo(() => lista.filter((e) => e.evento_id === eventoId), [lista, eventoId]);
+  const daProva = useMemo(() => lista.filter((e) => e.evento_id === eventoId), [lista, eventoId]);
+  const separados = useMemo(() => daProva.filter((e) => e.status === "alocado"), [daProva]);
+  const emCampo = useMemo(() => daProva.filter((e) => e.status === "em_campo"), [daProva]);
   const disponiveis = useMemo(() => {
     const q = normalizarNome(busca);
     return lista.filter(
       (e) =>
+        e.status === "disponivel" &&
         e.evento_id === null &&
-        e.status !== "manutencao" &&
         (!tipo || e.tipo === tipo) &&
         (!q || [e.patrimonio, e.numero_chip, e.numero_serie, e.base_nome].some((v) => normalizarNome(v).includes(q)))
     );
   }, [lista, tipo, busca]);
 
-  function alternar(idEq: number, marcar: boolean) {
-    setSelecionados((s) => {
-      const n = new Set(s);
-      if (marcar) n.add(idEq);
-      else n.delete(idEq);
-      return n;
-    });
+  // Pedido (card "Produtos" do evento, por quantidade) × separado (patrimônios desta prova)
+  const resumo = useMemo(() => {
+    const pedido = new Map<TipoEquipamento, number>();
+    for (const p of evento?.produtos || []) {
+      const t = tipoDeProduto(p.nome);
+      if (t) pedido.set(t, (pedido.get(t) || 0) + (p.quantidade || 0));
+    }
+    return TIPOS_EQUIPAMENTO.map((t) => ({
+      tipo: t,
+      pedido: pedido.get(t) || 0,
+      separado: daProva.filter((e) => e.tipo === t).length,
+      emCampo: emCampo.filter((e) => e.tipo === t).length,
+      selecionado: disponiveis.filter((e) => e.tipo === t && paraAdicionar.has(e.id)).length,
+    })).filter((r) => r.pedido > 0 || r.separado > 0);
+  }, [evento, daProva, emCampo, disponiveis, paraAdicionar]);
+
+  const acimaDoPedido = resumo.filter((r) => r.pedido > 0 && r.separado + r.selecionado > r.pedido);
+
+  function alternar(set: Set<number>, idEq: number, marcar: boolean) {
+    const n = new Set(set);
+    if (marcar) n.add(idEq);
+    else n.delete(idEq);
+    return n;
   }
 
-  function alternarTodos(marcar: boolean) {
-    setSelecionados(marcar ? new Set(disponiveis.map((e) => e.id)) : new Set());
-  }
-
-  async function alocar() {
+  async function chamar(url: string, init: RequestInit, sucesso: (d: Record<string, number>) => string) {
     setErro("");
     setOk("");
     setOcupado(true);
     try {
-      const r = await fetch(`/api/eventos/${id}/equipamentos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ equipamento_ids: [...selecionados] }),
-      });
+      const r = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        // Lote é tudo ou nada: nada foi alocado
-        setErro(`${d.error || "Não foi possível alocar."} Nenhum equipamento foi alocado.`);
-      } else {
-        setOk(`${d.alocados} equipamento(s) alocado(s) à prova.`);
-        setSelecionados(new Set());
+      if (!r.ok) setErro(d.error || "Não foi possível concluir.");
+      else {
+        setOk(sucesso(d));
+        window.dispatchEvent(new Event(EVENTO_EQUIPAMENTOS_MUDOU));
       }
       await carregar();
+      return r.ok;
     } catch {
       setErro("Falha de conexão.");
+      return false;
     } finally {
       setOcupado(false);
     }
   }
 
-  async function liberar(e: Equipamento) {
-    if (!confirm(`Liberar o patrimônio ${e.patrimonio} desta prova?`)) return;
-    setErro("");
-    setOk("");
-    const r = await fetch(`/api/equipamentos/${e.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ evento_id: null }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) setOk(`Patrimônio ${e.patrimonio} liberado.`);
-    else setErro(d.error || "Não foi possível liberar o equipamento.");
-    await carregar();
+  async function adicionar() {
+    const ok = await chamar(
+      `/api/eventos/${id}/equipamentos`,
+      { method: "POST", body: JSON.stringify({ equipamento_ids: [...paraAdicionar] }) },
+      (d) => `${d.alocados} equipamento(s) separado(s) para a prova.`
+    );
+    if (ok) setParaAdicionar(new Set());
+    else setErro((e) => `${e} Nenhum equipamento foi separado.`);
+  }
+
+  async function registrarSaida() {
+    const ok = await chamar(
+      `/api/eventos/${id}/equipamentos/saida`,
+      { method: "POST", body: JSON.stringify({ equipamento_ids: [...paraSair] }) },
+      (d) => `Saída registrada: ${d.sairam} equipamento(s) em campo.`
+    );
+    if (ok) setParaSair(new Set());
+  }
+
+  async function remover(e: Equipamento) {
+    if (!confirm(`Tirar o patrimônio ${e.patrimonio} desta prova?`)) return;
+    await chamar(`/api/equipamentos/${e.id}`, { method: "PUT", body: JSON.stringify({ evento_id: null }) }, () => `Patrimônio ${e.patrimonio} voltou a ficar disponível.`);
+    setParaSair((s) => alternar(s, e.id, false));
   }
 
   if (naoEncontrado) {
@@ -121,13 +172,20 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
         <Link href="/" className="text-sm text-slate-400 hover:text-white">
           ← Voltar
         </Link>
-        <p className="mt-4 text-slate-300">Prova não encontrada. Ela pode ter sido removida pelo sync do Gestão.</p>
+        <p className="mt-4 text-slate-300">
+          Prova não encontrada. Ela pode ter sido removida pelo sync do Gestão — aparelhos que estavam em campo continuam em{" "}
+          <Link href="/equipamentos/pendentes" className="text-blue-400 hover:underline">
+            Pendentes de retorno
+          </Link>
+          .
+        </p>
       </div>
     );
   }
   if (!evento) return <p className="text-slate-400">Carregando prova…</p>;
 
-  const todosMarcados = disponiveis.length > 0 && disponiveis.every((e) => selecionados.has(e.id));
+  const todosSair = separados.length > 0 && separados.every((e) => paraSair.has(e.id));
+  const todosAdicionar = disponiveis.length > 0 && disponiveis.every((e) => paraAdicionar.has(e.id));
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -143,47 +201,123 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
         <p className="text-slate-300">{evento.nome}</p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {TIPOS_EQUIPAMENTO.map((t) => (
-          <Indicador key={t} titulo={t} valor={alocados.filter((e) => e.tipo === t).length} />
-        ))}
-      </div>
+      {/* 1. Pedido × separado */}
+      {resumo.length === 0 ? (
+        <div className="bg-slate-800 rounded-xl p-4 text-sm text-slate-400">
+          Nenhuma quantidade de equipamento pedida para esta prova. Defina no card{" "}
+          <Link href={`/eventos/${id}`} className="text-blue-400 hover:underline">
+            Produtos
+          </Link>{" "}
+          do evento (ex.: Celular 5, Roteador 2) para acompanhar aqui.
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {resumo.map((r) => {
+            const cor =
+              r.pedido === 0 || r.separado > r.pedido
+                ? "border-amber-500/40"
+                : r.separado === r.pedido
+                  ? "border-emerald-500/40"
+                  : "border-slate-700";
+            return (
+              <div key={r.tipo} className={`bg-slate-800 border ${cor} rounded-xl px-4 py-3`}>
+                <div className="text-xs text-slate-400">{r.tipo}</div>
+                <div className="text-2xl font-bold">
+                  {r.separado}
+                  <span className="text-base text-slate-400">/{r.pedido}</span>
+                </div>
+                <div className="text-xs">
+                  {r.pedido === 0 ? (
+                    <span className="text-amber-300">não pedido</span>
+                  ) : r.separado === r.pedido ? (
+                    <span className="text-emerald-300">✓ completo</span>
+                  ) : r.separado > r.pedido ? (
+                    <span className="text-amber-300">{r.separado - r.pedido} acima do pedido</span>
+                  ) : (
+                    <span className="text-slate-400">faltam {r.pedido - r.separado}</span>
+                  )}
+                  {r.emCampo > 0 && <span className="text-sky-300"> · {r.emCampo} em campo</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {erro && <Aviso tipo="erro" texto={erro} onFechar={() => setErro("")} />}
       {ok && <Aviso tipo="ok" texto={ok} onFechar={() => setOk("")} />}
 
-      <section className="bg-slate-800 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-700">
-          <h2 className="font-semibold">Alocados nesta prova ({alocados.length})</h2>
-        </div>
-        {alocados.length === 0 ? (
-          <p className="p-4 text-sm text-slate-400">Nenhum equipamento alocado ainda.</p>
+      {/* 2. Separados → saída */}
+      <Secao
+        titulo={`Separados — aguardando saída (${separados.length})`}
+        subtitulo="Marque o que está saindo agora e registre a saída."
+      >
+        {separados.length === 0 ? (
+          <p className="p-4 text-sm text-slate-400">Nenhum equipamento separado aguardando saída.</p>
         ) : (
-          <ul className="divide-y divide-slate-700">
-            {alocados.map((e) => (
-              <li key={e.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <span className="font-mono font-semibold">{e.patrimonio}</span>
-                  <span className="text-xs text-slate-400 ml-2">
-                    {e.tipo}
-                    {e.numero_chip || e.numero_serie ? ` · ${e.numero_chip || e.numero_serie}` : ""}
-                  </span>
-                </div>
-                <button onClick={() => liberar(e)} className="text-sm text-red-400 hover:text-red-300 shrink-0">
-                  Liberar
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <label className="flex items-center gap-3 px-4 py-2 bg-slate-900/60 text-xs text-slate-400">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-blue-600"
+                checked={todosSair}
+                onChange={(e) => setParaSair(e.target.checked ? new Set(separados.map((x) => x.id)) : new Set())}
+              />
+              Selecionar todos ({separados.length})
+            </label>
+            <ul className="divide-y divide-slate-700">
+              {separados.map((e) => (
+                <li key={e.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <label className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-blue-600"
+                      checked={paraSair.has(e.id)}
+                      onChange={(ev) => setParaSair((s) => alternar(s, e.id, ev.target.checked))}
+                    />
+                    <span className="font-mono font-semibold">{e.patrimonio}</span>
+                    <span className="text-xs text-slate-400 truncate">{infoEquip(e)}</span>
+                  </label>
+                  <button onClick={() => remover(e)} disabled={ocupado} className="text-xs text-red-400 hover:text-red-300 shrink-0 disabled:opacity-50">
+                    Tirar da prova
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="p-4 border-t border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <span className="text-sm text-slate-400">{paraSair.size} marcado(s) para sair</span>
+              <button onClick={registrarSaida} disabled={paraSair.size === 0 || ocupado} className={botaoPrimario}>
+                {ocupado ? "Registrando…" : `Registrar saída (${paraSair.size})`}
+              </button>
+            </div>
+          </>
         )}
-      </section>
+      </Secao>
 
-      <section className="bg-slate-800 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-700 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-          <div>
-            <h2 className="font-semibold">Adicionar equipamentos</h2>
-            <p className="text-xs text-slate-400">Só aparecem os disponíveis (fora de outras provas e fora de manutenção).</p>
-          </div>
+      {/* 3. Em campo → conferência de retorno */}
+      <Secao
+        titulo={`Em campo — conferir retorno (${emCampo.length})`}
+        subtitulo="Quando o material voltar, bipe/digite o patrimônio ou marque na lista e dê entrada."
+      >
+        {emCampo.length === 0 ? (
+          <p className="p-4 text-sm text-slate-400">Nenhum equipamento desta prova está em campo.</p>
+        ) : (
+          <ConferenciaRetorno
+            itens={emCampo}
+            onConcluido={async (msg) => {
+              setOk(msg);
+              setErro("");
+              await carregar();
+            }}
+          />
+        )}
+      </Secao>
+
+      {/* 4. Adicionar disponíveis */}
+      <Secao
+        titulo="Separar equipamentos para a prova"
+        subtitulo="Só aparecem os disponíveis (fora de outras provas e fora de manutenção)."
+        acao={
           <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="search"
@@ -200,8 +334,8 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
               ))}
             </select>
           </div>
-        </div>
-
+        }
+      >
         {disponiveis.length === 0 ? (
           <p className="p-4 text-sm text-slate-400">
             Nenhum equipamento disponível com esse filtro.{" "}
@@ -212,7 +346,12 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
         ) : (
           <div className="max-h-[440px] overflow-y-auto">
             <label className="flex items-center gap-3 px-4 py-2 bg-slate-900/60 text-xs text-slate-400 sticky top-0">
-              <input type="checkbox" className="h-4 w-4 accent-blue-600" checked={todosMarcados} onChange={(e) => alternarTodos(e.target.checked)} />
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-blue-600"
+                checked={todosAdicionar}
+                onChange={(e) => setParaAdicionar(e.target.checked ? new Set(disponiveis.map((x) => x.id)) : new Set())}
+              />
               Selecionar todos ({disponiveis.length})
             </label>
             <ul className="divide-y divide-slate-700">
@@ -222,13 +361,12 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-blue-600"
-                      checked={selecionados.has(e.id)}
-                      onChange={(ev) => alternar(e.id, ev.target.checked)}
+                      checked={paraAdicionar.has(e.id)}
+                      onChange={(ev) => setParaAdicionar((s) => alternar(s, e.id, ev.target.checked))}
                     />
                     <span className="font-mono font-semibold">{e.patrimonio}</span>
                     <span className="text-xs text-slate-400 truncate">
-                      {e.tipo}
-                      {e.numero_chip || e.numero_serie ? ` · ${e.numero_chip || e.numero_serie}` : ""}
+                      {infoEquip(e)}
                       {e.base_nome ? ` · ${e.base_nome}` : ""}
                     </span>
                   </label>
@@ -237,14 +375,20 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
             </ul>
           </div>
         )}
-
         <div className="p-4 border-t border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <span className="text-sm text-slate-400">{selecionados.size} selecionado(s)</span>
-          <button onClick={alocar} disabled={selecionados.size === 0 || ocupado} className={botaoPrimario}>
-            {ocupado ? "Alocando…" : "Alocar selecionados"}
+          <span className="text-sm text-slate-400">
+            {paraAdicionar.size} selecionado(s)
+            {acimaDoPedido.length > 0 && (
+              <span className="block text-amber-300">
+                ⚠ Acima do pedido: {acimaDoPedido.map((r) => `${r.tipo} ${r.separado + r.selecionado}/${r.pedido}`).join(", ")}
+              </span>
+            )}
+          </span>
+          <button onClick={adicionar} disabled={paraAdicionar.size === 0 || ocupado} className={botaoPrimario}>
+            {ocupado ? "Separando…" : `Separar para a prova (${paraAdicionar.size})`}
           </button>
         </div>
-      </section>
+      </Secao>
     </div>
   );
 }

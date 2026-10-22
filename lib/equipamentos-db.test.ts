@@ -13,7 +13,7 @@ process.env.TURSO_DATABASE_URL = "file:" + path.join(dir, "teste.db").replace(/\
 delete process.env.TURSO_AUTH_TOKEN;
 
 const { initDB, dbRun, dbGet, dbAll, dbBatch, dbTransaction } = await import("./db");
-const { alocarNaProva, liberarDaProva, mudarStatus, ErroEquipamento } = await import("./equipamentos-db");
+const { alocarNaProva, liberarDaProva, mudarStatus, darSaida, registrarRetorno, ErroEquipamento } = await import("./equipamentos-db");
 const { statementsApagarEventos } = await import("./eventos-remocao");
 
 let ev1 = 0;
@@ -118,6 +118,87 @@ describe("statementsApagarEventos", () => {
     );
     expect(h.map((x) => x.acao)).toEqual(["alocado", "liberado"]);
     expect(h[1]).toMatchObject({ evento_ref: "#9100 · Prova Cancelada", observacao: "Prova saiu do Gestão (sync)" });
+  });
+});
+
+const eq2 = (id: number) =>
+  dbGet<{ evento_id: number | null; status: string; saida_em: string | null; evento_ref: string | null }>(
+    "SELECT evento_id, status, saida_em, evento_ref FROM equipamentos WHERE id = ?",
+    id
+  );
+const acoes = async (id: number) =>
+  (await dbAll<{ acao: string }>("SELECT acao FROM equipamento_historico WHERE equipamento_id = ? ORDER BY id", id)).map((h) => h.acao);
+
+describe("saída e retorno", () => {
+  it("separado → saída → retorno OK volta a ficar disponível", async () => {
+    const a = await novoEquip("S-1");
+    await dbTransaction((tx) => alocarNaProva(tx, ev1, [a], "ana"));
+    expect(await dbTransaction((tx) => darSaida(tx, ev1, [a], "ana"))).toEqual({ sairam: 1, jaEstavamEmCampo: 0 });
+    const emCampo = await eq2(a);
+    expect(emCampo).toMatchObject({ evento_id: ev1, status: "em_campo", evento_ref: "#9001 · Corrida A" });
+    expect(emCampo?.saida_em).toBeTruthy();
+    // repetir a saída não faz nada
+    expect(await dbTransaction((tx) => darSaida(tx, ev1, [a], "ana"))).toEqual({ sairam: 0, jaEstavamEmCampo: 1 });
+
+    await dbTransaction((tx) => registrarRetorno(tx, a, "ok", "bruno", null));
+    expect(await eq2(a)).toEqual({ evento_id: null, status: "disponivel", saida_em: null, evento_ref: null });
+    expect(await acoes(a)).toEqual(["alocado", "saida", "retorno"]);
+  });
+
+  it("retorno com defeito vai para manutenção com a observação", async () => {
+    const a = await novoEquip("S-2");
+    await dbTransaction((tx) => alocarNaProva(tx, ev1, [a], null));
+    await dbTransaction((tx) => darSaida(tx, ev1, [a], null));
+    await dbTransaction((tx) => registrarRetorno(tx, a, "defeito", null, "tela quebrada"));
+    expect((await eq2(a))?.status).toBe("manutencao");
+    const h = await dbGet<{ acao: string; observacao: string; evento_ref: string }>(
+      "SELECT acao, observacao, evento_ref FROM equipamento_historico WHERE equipamento_id = ? ORDER BY id DESC LIMIT 1",
+      a
+    );
+    expect(h).toEqual({ acao: "retorno_defeito", observacao: "tela quebrada", evento_ref: "#9001 · Corrida A" });
+  });
+
+  it("em campo: não libera, não aloca em outra prova, não vai p/ manutenção e não dá saída de quem não é da prova", async () => {
+    const a = await novoEquip("S-3");
+    const livre = await novoEquip("S-4");
+    await dbTransaction((tx) => alocarNaProva(tx, ev1, [a], null));
+    await dbTransaction((tx) => darSaida(tx, ev1, [a], null));
+    await expect(dbTransaction((tx) => liberarDaProva(tx, a, null))).rejects.toThrow(/Registre o retorno/);
+    await expect(dbTransaction((tx) => alocarNaProva(tx, ev2, [a], null))).rejects.toThrow(/outra prova|em campo/);
+    await expect(dbTransaction((tx) => mudarStatus(tx, a, "manutencao", null))).rejects.toThrow(/em campo/);
+    await expect(dbTransaction((tx) => darSaida(tx, ev1, [livre], null))).rejects.toThrow(/não está separado/);
+    await expect(dbTransaction((tx) => registrarRetorno(tx, livre, "ok", null, null))).rejects.toThrow(/não está em campo/);
+  });
+
+  it("saída em lote é tudo ou nada", async () => {
+    const a = await novoEquip("S-5");
+    const fora = await novoEquip("S-6");
+    await dbTransaction((tx) => alocarNaProva(tx, ev1, [a], null));
+    await expect(dbTransaction((tx) => darSaida(tx, ev1, [a, fora], null))).rejects.toThrow();
+    expect((await eq2(a))?.status).toBe("alocado");
+  });
+
+  it("prova apagada: separado volta a disponível, em campo continua pendente e ainda dá entrada", async () => {
+    const ev = Number((await dbRun("INSERT INTO eventos (numero, nome, data) VALUES ('9200', 'Prova Sumiu', '06/12/2026')")).lastInsertRowid);
+    const sep = await novoEquip("P-1");
+    const fora = await novoEquip("P-2");
+    await dbTransaction((tx) => alocarNaProva(tx, ev, [sep, fora], null));
+    await dbTransaction((tx) => darSaida(tx, ev, [fora], null));
+
+    await dbBatch(statementsApagarEventos([ev], "Prova saiu do Gestão (sync)"));
+
+    expect((await eq2(sep))?.status).toBe("disponivel");
+    expect(await eq2(fora)).toMatchObject({ evento_id: null, status: "em_campo", evento_ref: "#9200 · Prova Sumiu" });
+    expect((await acoes(fora)).at(-1)).toBe("prova_removida");
+    // não pode ser realocado nem excluído enquanto em campo; o retorno funciona
+    await expect(dbTransaction((tx) => alocarNaProva(tx, ev1, [fora], null))).rejects.toThrow(/em campo/);
+    await dbTransaction((tx) => registrarRetorno(tx, fora, "ok", null, null));
+    expect((await eq2(fora))?.status).toBe("disponivel");
+    const ultimo = await dbGet<{ evento_ref: string }>(
+      "SELECT evento_ref FROM equipamento_historico WHERE equipamento_id = ? ORDER BY id DESC LIMIT 1",
+      fora
+    );
+    expect(ultimo?.evento_ref).toBe("#9200 · Prova Sumiu");
   });
 });
 
