@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AlterarSenha from "./AlterarSenha";
 
 export default function ConfigPage() {
   const [usuario, setUsuario] = useState("");
@@ -107,6 +108,8 @@ export default function ConfigPage() {
           {salvo && <span className="text-green-400 text-sm">✓ Salvo</span>}
         </div>
       </form>
+
+      <AlterarSenha />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { dbGet, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { candidatosLogin } from "@/lib/login-tecnico";
+import { SENHA_INICIAL_ADMIN } from "@/lib/senha-admin";
 
 export async function POST(req: NextRequest) {
   await initDB();
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
     session.name = user.name;
     session.role = "admin";
     session.tecnicoId = undefined;
+    session.senhaPadrao = password === SENHA_INICIAL_ADMIN;
     session.isLoggedIn = true;
     await session.save();
     return NextResponse.json({ ok: true, name: user.name, role: "admin" });
@@ -45,6 +47,7 @@ export async function POST(req: NextRequest) {
     session.name = tec.nome;
     session.role = "tecnico";
     session.tecnicoId = tec.id;
+    session.senhaPadrao = false;
     session.isLoggedIn = true;
     await session.save();
     return NextResponse.json({ ok: true, name: tec.nome, role: "tecnico" });
