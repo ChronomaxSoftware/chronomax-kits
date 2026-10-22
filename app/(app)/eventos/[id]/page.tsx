@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { TipoEquipamento, tipoDeProduto } from "@/lib/equipamentos";
+import SeletorEquipamentosProduto, { EquipamentoResumo } from "@/components/equipamentos/SeletorEquipamentosProduto";
 
 type Evento = {
   id: number;
@@ -88,6 +90,7 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
   const [enviandoKit, setEnviandoKit] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
+  const [inventario, setInventario] = useState<EquipamentoResumo[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -128,7 +131,28 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
       setUsuariosEvento(ev.usuarios_evento || "");
     });
     fetch(`/api/eventos/${id}/kits`).then((r) => r.json()).then(setKits);
+    carregarInventario();
   }, [id]);
+
+  async function carregarInventario() {
+    try {
+      const r = await fetch("/api/equipamentos");
+      if (r.ok) setInventario(await r.json());
+    } catch {
+      // sem inventário o card Produtos continua funcionando só com quantidades
+    }
+  }
+
+  // Quantidade pedida por tipo do inventário (soma produtos do mesmo tipo, ex.: "Celular" + "Celular reserva");
+  // o seletor de patrimônios aparece só na primeira linha de cada tipo.
+  const pedidoPorTipo = new Map<TipoEquipamento, { qtd: number; primeiroProduto: number }>();
+  for (const p of produtos) {
+    const t = tipoDeProduto(p.nome);
+    const q = produtosSel.get(p.id) || 0;
+    if (!t || q <= 0) continue;
+    const atual = pedidoPorTipo.get(t);
+    pedidoPorTipo.set(t, { qtd: (atual?.qtd || 0) + q, primeiroProduto: atual?.primeiroProduto ?? p.id });
+  }
 
   async function carregarKits() {
     const r = await fetch(`/api/eventos/${id}/kits`);
@@ -630,18 +654,42 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
               </p>
             ) : (
               <div className="space-y-2">
-                {produtos.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 p-2 bg-slate-900 rounded">
-                    <span className="flex-1 text-white">{p.nome}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={produtosSel.get(p.id) || 0}
-                      onChange={(e) => setQtdProduto(p.id, parseInt(e.target.value) || 0)}
-                      className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white text-right"
-                    />
-                  </div>
-                ))}
+                {produtos.map((p) => {
+                  const t = tipoDeProduto(p.nome);
+                  const pedido = t ? pedidoPorTipo.get(t) : undefined;
+                  return (
+                    <div key={p.id} className="p-2 bg-slate-900 rounded">
+                      <div className="flex items-center gap-3">
+                        <span className="flex-1 text-white">{p.nome}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={produtosSel.get(p.id) || 0}
+                          onChange={(e) => setQtdProduto(p.id, parseInt(e.target.value) || 0)}
+                          className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-white text-right"
+                        />
+                      </div>
+                      {t && pedido && pedido.primeiroProduto === p.id && (
+                        <SeletorEquipamentosProduto
+                          eventoId={evento.id}
+                          tipo={t}
+                          quantidade={pedido.qtd}
+                          lista={inventario}
+                          onMudou={carregarInventario}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+                {pedidoPorTipo.size > 0 && (
+                  <p className="text-[11px] text-slate-500">
+                    A escolha dos patrimônios é gravada na hora. Saída e retorno em{" "}
+                    <Link href={`/eventos/${evento.id}/equipamentos`} className="text-blue-400 hover:underline">
+                      📦 Equipamentos da prova
+                    </Link>
+                    .
+                  </p>
+                )}
               </div>
             )}
           </Card>
