@@ -4,6 +4,7 @@ import { getConfig } from "@/lib/config";
 import { scrapeGestao } from "@/lib/scraper-fetch";
 import { iniciarSync, setProgresso, finalizarSync } from "@/lib/sync-progress";
 import { normalizarNome } from "@/lib/tecnico-match";
+import { statementsApagarEventos } from "@/lib/eventos-remocao";
 
 export const maxDuration = 60;
 
@@ -263,23 +264,9 @@ export async function POST(req: NextRequest) {
     const staleIds = eventosExistentes.filter((e) => !numerosAprovados.has(e.numero)).map((e) => e.id);
     if (staleIds.length > 0) {
       setProgresso({ fase: `Removendo ${staleIds.length} eventos que saíram do Gestão`, porcentagem: 98 });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const delStmts: { sql: string; args: any[] }[] = [];
+      const delStmts: { sql: string; args: (string | number)[] }[] = [];
       for (let i = 0; i < staleIds.length; i += 100) {
-        const chunk = staleIds.slice(i, i + 100);
-        const ph = chunk.map(() => "?").join(",");
-        // Filhas com cascade lógico (libsql/Turso não força FK, então apagamos à mão)
-        delStmts.push({ sql: `DELETE FROM evento_tecnicos WHERE evento_id IN (${ph})`, args: [...chunk] });
-        delStmts.push({ sql: `DELETE FROM evento_produtos WHERE evento_id IN (${ph})`, args: [...chunk] });
-        delStmts.push({ sql: `DELETE FROM evento_itens_gestao WHERE evento_id IN (${ph})`, args: [...chunk] });
-        delStmts.push({ sql: `DELETE FROM evento_equipe_gestao WHERE evento_id IN (${ph})`, args: [...chunk] });
-        delStmts.push({ sql: `DELETE FROM evento_kits WHERE evento_id IN (${ph})`, args: [...chunk] });
-        // Referências que só desvinculam (equivalente a ON DELETE SET NULL)
-        delStmts.push({ sql: `UPDATE celulares_chip SET evento_id = NULL WHERE evento_id IN (${ph})`, args: [...chunk] });
-        delStmts.push({ sql: `UPDATE equipamentos_alugados SET evento_id = NULL WHERE evento_id IN (${ph})`, args: [...chunk] });
-        delStmts.push({ sql: `UPDATE staff_assignments SET event_id = NULL WHERE event_id IN (${ph})`, args: [...chunk] });
-        // Por fim, o próprio evento
-        delStmts.push({ sql: `DELETE FROM eventos WHERE id IN (${ph})`, args: [...chunk] });
+        delStmts.push(...statementsApagarEventos(staleIds.slice(i, i + 100), "Prova saiu do Gestão (sync)"));
       }
       for (let i = 0; i < delStmts.length; i += BATCH_SIZE) {
         await dbBatch(delStmts.slice(i, i + BATCH_SIZE));

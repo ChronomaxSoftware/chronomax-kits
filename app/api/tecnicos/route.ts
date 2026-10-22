@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { dbAll, dbRun, initDB } from "@/lib/db";
+import { resolverLoginTecnico, validarSenhaTecnico } from "@/lib/login-tecnico";
 
 export async function GET(req: NextRequest) {
   await initDB();
@@ -18,18 +19,31 @@ export async function POST(req: NextRequest) {
   await initDB();
   const { nome, telefone, login, senha } = await req.json();
   if (!nome?.trim()) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
-  const loginVal = login?.trim() || null;
+  const erroSenha = validarSenhaTecnico(senha);
+  if (erroSenha) return NextResponse.json({ error: erroSenha }, { status: 400 });
+  // Sem login manual, o telefone (só dígitos) vira o login do portal
+  const loginVal = resolverLoginTecnico(login, telefone, !!senha);
+  if (senha && !loginVal) {
+    return NextResponse.json(
+      { error: "Informe um login ou um telefone válido (DDD + número) para o acesso ao portal" },
+      { status: 400 }
+    );
+  }
   const senhaHash = senha ? bcrypt.hashSync(senha, 10) : null;
   try {
     const r = await dbRun(
       "INSERT INTO tecnicos (nome, telefone, login, senha_hash) VALUES (?, ?, ?, ?)",
       nome.trim(),
-      telefone || null,
+      String(telefone ?? "").trim() || null,
       loginVal,
       senhaHash
     );
     return NextResponse.json({ id: r.lastInsertRowid });
-  } catch {
-    return NextResponse.json({ error: "Esse login já está em uso por outro técnico" }, { status: 400 });
+  } catch (err) {
+    if (String(err).includes("UNIQUE")) {
+      return NextResponse.json({ error: "Esse login (ou telefone) já está em uso por outro técnico" }, { status: 409 });
+    }
+    console.error("[tecnicos] erro ao cadastrar", err);
+    return NextResponse.json({ error: "Não foi possível cadastrar o técnico" }, { status: 500 });
   }
 }

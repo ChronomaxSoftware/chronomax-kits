@@ -249,6 +249,12 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
             >
               📘 Gerar book
             </Link>
+            <Link
+              href={`/eventos/${evento.id}/equipamentos`}
+              className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
+            >
+              📦 Equipamentos da prova
+            </Link>
           </div>
         </div>
         <button onClick={remover} className="text-red-400 hover:text-red-300 text-sm">

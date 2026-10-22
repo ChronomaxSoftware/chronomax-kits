@@ -1,4 +1,4 @@
-import { createClient, type Client, type InValue } from "@libsql/client";
+import { createClient, type Client, type InValue, type Transaction } from "@libsql/client";
 import bcrypt from "bcryptjs";
 
 let _client: Client | null = null;
@@ -19,7 +19,10 @@ function getClient(): Client {
 export async function dbRun(sql: string, ...args: any[]) {
   const client = getClient();
   const result = await client.execute({ sql, args: args as InValue[] });
-  return { lastInsertRowid: result.lastInsertRowid, changes: result.rowsAffected };
+  // libsql devolve o rowid como BigInt, que NextResponse.json não consegue serializar
+  // ("Do not know how to serialize a BigInt") — ids cabem com folga em number.
+  const rowid = result.lastInsertRowid;
+  return { lastInsertRowid: rowid === undefined ? undefined : Number(rowid), changes: result.rowsAffected };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,6 +52,25 @@ export async function dbBatch(statements: { sql: string; args: any[] }[]) {
     statements.map((s) => ({ sql: s.sql, args: s.args as InValue[] })),
     "write"
   );
+}
+
+/**
+ * Transação interativa de escrita: tudo ou nada. Usada quando uma escrita depende
+ * do resultado da anterior (ex.: alocar vários equipamentos e desistir se um falhar).
+ * Se `fn` lançar, faz rollback e repassa o erro.
+ */
+export async function dbTransaction<T>(fn: (tx: Transaction) => Promise<T>): Promise<T> {
+  const tx = await getClient().transaction("write");
+  try {
+    const r = await fn(tx);
+    await tx.commit();
+    return r;
+  } catch (err) {
+    await tx.rollback().catch(() => {});
+    throw err;
+  } finally {
+    tx.close();
+  }
 }
 
 // ── inicialização do schema (chamada uma vez) ──
@@ -163,6 +185,43 @@ CREATE TABLE IF NOT EXISTS evento_kits (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (evento_id) REFERENCES eventos(id) ON DELETE CASCADE
 );
+
+-- Inventário individual por patrimônio (substitui celulares_chip, que fica como legado).
+-- status: disponivel | alocado | manutencao. "alocado" sempre anda junto com evento_id.
+CREATE TABLE IF NOT EXISTS equipamentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo TEXT NOT NULL,
+  patrimonio TEXT NOT NULL,
+  numero_chip TEXT,
+  operadora TEXT,
+  numero_serie TEXT,
+  base_id INTEGER,
+  evento_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'disponivel',
+  observacao TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (base_id) REFERENCES bases(id) ON DELETE SET NULL,
+  FOREIGN KEY (evento_id) REFERENCES eventos(id) ON DELETE SET NULL
+);
+-- Patrimônio único sem diferenciar maiúsculas/minúsculas
+CREATE UNIQUE INDEX IF NOT EXISTS idx_equipamentos_patrimonio ON equipamentos(patrimonio COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_equipamentos_tipo ON equipamentos(tipo);
+CREATE INDEX IF NOT EXISTS idx_equipamentos_evento ON equipamentos(evento_id);
+
+CREATE TABLE IF NOT EXISTS equipamento_historico (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  equipamento_id INTEGER NOT NULL,
+  evento_id INTEGER,
+  evento_ref TEXT,
+  acao TEXT NOT NULL,
+  observacao TEXT,
+  usuario TEXT,
+  criado_em TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (equipamento_id) REFERENCES equipamentos(id) ON DELETE CASCADE,
+  FOREIGN KEY (evento_id) REFERENCES eventos(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_equipamento_historico_equip ON equipamento_historico(equipamento_id);
 
 CREATE TABLE IF NOT EXISTS celulares_chip (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -417,7 +476,7 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
   await dbRun("INSERT OR IGNORE INTO users (username, password_hash, name) VALUES (?, ?, ?)", "admin", hash, "Administrador");
   await dbRun("INSERT OR IGNORE INTO users (username, password_hash, name) VALUES (?, ?, ?)", "lider", hash, "Líder");
 
-  for (const nome of ["Notebook", "Celular", "Extensão", "Régua de energia", "Totem", "Roteador"]) {
+  for (const nome of ["Notebook", "Tablet", "Celular", "Carregador", "Extensão", "Régua de energia", "Mouse", "Totem", "Roteador"]) {
     await dbRun("INSERT OR IGNORE INTO produtos (nome) VALUES (?)", nome);
   }
 

@@ -35,7 +35,7 @@ export default function LoginPage() {
         <h1 className="text-2xl font-bold text-white mb-2">ChronoMax Kits</h1>
         <p className="text-slate-400 text-sm mb-6">Gestão de entregas</p>
 
-        <label className="block text-sm text-slate-300 mb-1">Usuário</label>
+        <label className="block text-sm text-slate-300 mb-1">Usuário ou telefone</label>
         <input
           type="text"
           value={username}
