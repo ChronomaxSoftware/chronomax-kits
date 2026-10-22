@@ -187,7 +187,8 @@ CREATE TABLE IF NOT EXISTS evento_kits (
 );
 
 -- Inventário individual por patrimônio (substitui celulares_chip, que fica como legado).
--- status: disponivel | alocado | manutencao. "alocado" sempre anda junto com evento_id.
+-- status: disponivel | alocado (separado p/ prova) | em_campo (saiu) | manutencao.
+-- "alocado" sempre tem evento_id; "em_campo" tem saida_em (evento_id some se a prova for apagada).
 CREATE TABLE IF NOT EXISTS equipamentos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tipo TEXT NOT NULL,
@@ -208,6 +209,7 @@ CREATE TABLE IF NOT EXISTS equipamentos (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_equipamentos_patrimonio ON equipamentos(patrimonio COLLATE NOCASE);
 CREATE INDEX IF NOT EXISTS idx_equipamentos_tipo ON equipamentos(tipo);
 CREATE INDEX IF NOT EXISTS idx_equipamentos_evento ON equipamentos(evento_id);
+CREATE INDEX IF NOT EXISTS idx_equipamentos_status ON equipamentos(status);
 
 CREATE TABLE IF NOT EXISTS equipamento_historico (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -367,6 +369,11 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     // Função e data/hora da atribuição do técnico de entrega de kit ao evento
     ["evento_tecnicos", "funcao", "ALTER TABLE evento_tecnicos ADD COLUMN funcao TEXT"],
     ["evento_tecnicos", "atribuido_em", "ALTER TABLE evento_tecnicos ADD COLUMN atribuido_em TEXT"],
+    // Saída/retorno de equipamentos (status em_campo): quando saiu, quem registrou e a
+    // prova "congelada" em texto — continua legível se a prova sumir do Gestão.
+    ["equipamentos", "saida_em", "ALTER TABLE equipamentos ADD COLUMN saida_em TEXT"],
+    ["equipamentos", "saida_por", "ALTER TABLE equipamentos ADD COLUMN saida_por TEXT"],
+    ["equipamentos", "evento_ref", "ALTER TABLE equipamentos ADD COLUMN evento_ref TEXT"],
   ];
 
   // tem_kit precisa de backfill especial

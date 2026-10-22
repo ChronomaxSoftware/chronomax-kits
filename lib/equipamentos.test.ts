@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ehErroPatrimonioDuplicado, idOuNull, lerIdsLote, normalizarPatrimonio, validarCadastro } from "./equipamentos";
+import {
+  ehErroPatrimonioDuplicado,
+  idOuNull,
+  lerIdsLote,
+  lerItensRetorno,
+  normalizarPatrimonio,
+  tipoDeProduto,
+  validarCadastro,
+} from "./equipamentos";
 
 describe("normalizarPatrimonio", () => {
   it("apara, colapsa espaços e põe em maiúsculas", () => {
@@ -75,5 +83,35 @@ describe("ehErroPatrimonioDuplicado", () => {
   it("reconhece a violação do índice único", () => {
     expect(ehErroPatrimonioDuplicado(new Error("SQLITE_CONSTRAINT: UNIQUE constraint failed: equipamentos.patrimonio"))).toBe(true);
     expect(ehErroPatrimonioDuplicado(new Error("UNIQUE constraint failed: tecnicos.login"))).toBe(false);
+  });
+});
+
+describe("tipoDeProduto", () => {
+  it("liga o produto do evento ao tipo do inventário", () => {
+    expect(tipoDeProduto("Celular")).toBe("Celular");
+    expect(tipoDeProduto("Celulares")).toBe("Celular");
+    expect(tipoDeProduto("Roteador 4G")).toBe("Roteador");
+    expect(tipoDeProduto("Notebook")).toBe("Notebook");
+    expect(tipoDeProduto("Totem")).toBe("Totem");
+    expect(tipoDeProduto("Tablet")).toBe("Tablet");
+  });
+  it("produtos sem patrimônio não têm par", () => {
+    for (const p of ["Carregador", "Extensão", "Régua de energia", "Mouse", "", null]) expect(tipoDeProduto(p)).toBeNull();
+  });
+});
+
+describe("lerItensRetorno", () => {
+  it("aceita ok/defeito, remove repetidos e corta observação longa", () => {
+    const r = lerItensRetorno({ itens: [{ id: 1, resultado: "ok" }, { id: "2", resultado: "defeito", observacao: "tela quebrada" }, { id: 1, resultado: "defeito" }] });
+    expect(r).toEqual([
+      { id: 1, resultado: "ok", observacao: null },
+      { id: 2, resultado: "defeito", observacao: "tela quebrada" },
+    ]);
+  });
+  it("rejeita lista vazia, id inválido ou resultado desconhecido", () => {
+    expect(lerItensRetorno({ itens: [] })).toBeNull();
+    expect(lerItensRetorno({})).toBeNull();
+    expect(lerItensRetorno({ itens: [{ id: "x", resultado: "ok" }] })).toBeNull();
+    expect(lerItensRetorno({ itens: [{ id: 1, resultado: "perdido" }] })).toBeNull();
   });
 });

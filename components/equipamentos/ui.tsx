@@ -11,7 +11,10 @@ export const botaoPrimario =
   "bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg";
 export const botaoSecundario = "bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm px-3 py-2 rounded-lg";
 
-export type EventoOpcao = { id: number; numero: string; nome: string; data: string; cidade: string | null; uf: string | null };
+/** Disparado (window) após saída/retorno, pra atualizar o contador da aba "Pendentes". */
+export const EVENTO_EQUIPAMENTOS_MUDOU = "equipamentos-mudou";
+
+export type EventoOpcao ={ id: number; numero: string; nome: string; data: string; cidade: string | null; uf: string | null };
 
 export function StatusBadge({ status }: { status: string }) {
   const cor =
@@ -19,7 +22,9 @@ export function StatusBadge({ status }: { status: string }) {
       ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
       : status === "alocado"
         ? "bg-violet-500/15 text-violet-300 border-violet-500/30"
-        : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
+        : status === "em_campo"
+          ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
+          : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cor}`}>
       {labelStatusEquipamento(status)}
@@ -69,6 +74,24 @@ export function provasParaAlocar(eventos: EventoOpcao[]): EventoOpcao[] {
     .filter((x) => x.d === null || x.d >= corte)
     .sort((a, b) => (a.d?.getTime() ?? Infinity) - (b.d?.getTime() ?? Infinity))
     .map((x) => x.e);
+}
+
+/** CURRENT_TIMESTAMP do SQLite vem em UTC "yyyy-mm-dd hh:mm:ss" → Date. */
+export function dataDoBanco(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  const d = new Date(s.includes("T") ? s : s.replace(" ", "T") + "Z");
+  return isNaN(d.getTime()) ? null : d;
+}
+
+export function formatarDataHora(s: string | null | undefined): string {
+  const d = dataDoBanco(s);
+  return d ? d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
+}
+
+/** Dias inteiros desde a data (0 = hoje). */
+export function diasDesde(s: string | null | undefined): number | null {
+  const d = dataDoBanco(s);
+  return d ? Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000)) : null;
 }
 
 export function rotuloProva(e: { numero: string; nome: string; data?: string | null }) {

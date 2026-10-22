@@ -105,14 +105,20 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!id) return NextResponse.json({ error: "Equipamento inválido" }, { status: 400 });
   try {
     await dbTransaction(async (tx) => {
-      const r = await tx.execute({ sql: "SELECT patrimonio, evento_id FROM equipamentos WHERE id = ?", args: [id] });
+      const r = await tx.execute({ sql: "SELECT patrimonio, evento_id, status FROM equipamentos WHERE id = ?", args: [id] });
       if (r.rows.length === 0) throw new ErroEquipamento("Equipamento não encontrado", 404);
+      if (r.rows[0].status === "em_campo") {
+        throw new ErroEquipamento(`Patrimônio ${r.rows[0].patrimonio} está em campo. Registre o retorno antes de excluir.`, 409);
+      }
       if (r.rows[0].evento_id != null) {
         throw new ErroEquipamento(`Patrimônio ${r.rows[0].patrimonio} está alocado a uma prova. Libere-o antes de excluir.`, 409);
       }
       // Turso não força FK: apaga o histórico à mão
       await tx.execute({ sql: "DELETE FROM equipamento_historico WHERE equipamento_id = ?", args: [id] });
-      await tx.execute({ sql: "DELETE FROM equipamentos WHERE id = ? AND evento_id IS NULL", args: [id] });
+      await tx.execute({
+        sql: "DELETE FROM equipamentos WHERE id = ? AND evento_id IS NULL AND status <> 'em_campo'",
+        args: [id],
+      });
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

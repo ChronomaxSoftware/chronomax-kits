@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { botaoSecundario } from "./ui";
+import { botaoSecundario, formatarDataHora } from "./ui";
 
 type Registro = {
   id: number;
@@ -20,13 +20,11 @@ const ACOES: Record<string, string> = {
   desalocado: "Liberado da prova",
   manutencao: "Enviado para manutenção",
   retorno_manutencao: "Voltou da manutenção",
+  saida: "Saída para a prova",
+  retorno: "Retorno conferido (OK)",
+  retorno_defeito: "Retorno com defeito → manutenção",
+  prova_removida: "Prova removida com o aparelho em campo",
 };
-
-/** CURRENT_TIMESTAMP do SQLite é UTC ("yyyy-mm-dd hh:mm:ss") → horário local legível. */
-function formatarData(s: string) {
-  const d = new Date(s.includes("T") ? s : s.replace(" ", "T") + "Z");
-  return isNaN(d.getTime()) ? s : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-}
 
 export default function HistoricoEquipamento({
   equipamento,
@@ -88,7 +86,7 @@ export default function HistoricoEquipamento({
                     {r.evento_ref && <span className="text-slate-400"> · {r.evento_ref}</span>}
                   </div>
                   <div className="text-xs text-slate-500">
-                    {formatarData(r.criado_em)}
+                    {formatarDataHora(r.criado_em)}
                     {r.usuario ? ` · por ${r.usuario}` : ""}
                     {r.observacao ? ` · ${r.observacao}` : ""}
                   </div>

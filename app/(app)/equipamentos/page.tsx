@@ -14,6 +14,7 @@ import {
   provasParaAlocar,
   rotulo,
   rotuloProva,
+  formatarDataHora,
 } from "@/components/equipamentos/ui";
 import HistoricoEquipamento from "@/components/equipamentos/HistoricoEquipamento";
 
@@ -33,6 +34,8 @@ type Equipamento = {
   evento_numero: string | null;
   evento_nome: string | null;
   evento_data: string | null;
+  prova_ref: string | null;
+  saida_em: string | null;
 };
 type Base = { id: number; nome: string; uf: string };
 
@@ -115,6 +118,7 @@ export default function EquipamentosPage() {
       total: lista.length,
       disponivel: lista.filter((e) => e.status === "disponivel").length,
       alocado: lista.filter((e) => e.status === "alocado").length,
+      em_campo: lista.filter((e) => e.status === "em_campo").length,
       manutencao: lista.filter((e) => e.status === "manutencao").length,
     }),
     [lista]
@@ -142,6 +146,8 @@ export default function EquipamentosPage() {
         base_id: form.base_id ? Number(form.base_id) : null,
         evento_id: form.evento_id ? Number(form.evento_id) : null,
       };
+      // Aparelho em campo: o vínculo com a prova só muda pela saída/retorno
+      if (editando?.status === "em_campo") delete (body as Partial<typeof body>).evento_id;
       const r = await fetch(editando ? `/api/equipamentos/${editando.id}` : "/api/equipamentos", {
         method: editando ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -219,19 +225,17 @@ export default function EquipamentosPage() {
   const comChip = TIPOS_COM_CHIP.includes(form.tipo);
 
   return (
-    <div className="max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Inventário de equipamentos</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          Cada aparelho é controlado pelo <strong className="text-slate-300">patrimônio</strong>. Um equipamento só pode
-          estar em uma prova por vez; para trocar de prova, libere-o antes.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <p className="text-slate-400 text-sm">
+        Cada aparelho é controlado pelo <strong className="text-slate-300">patrimônio</strong>: separado para a prova →
+        saída → retorno conferido. Um equipamento só pode estar em uma prova por vez.
+      </p>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <Indicador titulo="Cadastrados" valor={contagem.total} />
         <Indicador titulo="Disponíveis" valor={contagem.disponivel} cor="text-emerald-300" />
-        <Indicador titulo="Alocados em provas" valor={contagem.alocado} cor="text-violet-300" />
+        <Indicador titulo="Separados p/ prova" valor={contagem.alocado} cor="text-violet-300" />
+        <Indicador titulo="Em campo" valor={contagem.em_campo} cor="text-sky-300" />
         <Indicador titulo="Em manutenção" valor={contagem.manutencao} cor="text-amber-300" />
       </div>
 
@@ -332,7 +336,7 @@ export default function EquipamentosPage() {
               id="eq-prova"
               className={campo}
               value={form.evento_id}
-              disabled={form.status === "manutencao"}
+              disabled={form.status === "manutencao" || editando?.status === "em_campo"}
               onChange={(e) => setForm({ ...form, evento_id: e.target.value })}
             >
               <option value="">Não alocado</option>
@@ -394,7 +398,8 @@ export default function EquipamentosPage() {
             <select aria-label="Filtrar por situação" className={`${campo} sm:w-40`} value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
               <option value="">Todas as situações</option>
               <option value="disponivel">Disponível</option>
-              <option value="alocado">Alocado</option>
+              <option value="alocado">Separado p/ prova</option>
+              <option value="em_campo">Em campo</option>
               <option value="manutencao">Manutenção</option>
             </select>
           </div>
@@ -432,7 +437,20 @@ export default function EquipamentosPage() {
                   {e.base_nome && <div className="text-xs text-slate-500">Base: {e.base_nome}/{e.base_uf}</div>}
                 </div>
                 <div className="text-sm min-w-0">
-                  {e.evento_id ? (
+                  {e.status === "em_campo" ? (
+                    <div className="min-w-0">
+                      {e.evento_id ? (
+                        <Link href={`/eventos/${e.evento_id}/equipamentos`} className="text-blue-400 hover:underline truncate block">
+                          {e.prova_ref}
+                        </Link>
+                      ) : (
+                        <span className="text-slate-300 truncate block">{e.prova_ref || "Prova removida"}</span>
+                      )}
+                      <Link href="/equipamentos/pendentes" className="text-xs text-sky-300 hover:underline">
+                        Em campo desde {formatarDataHora(e.saida_em)} · dar entrada
+                      </Link>
+                    </div>
+                  ) : e.evento_id ? (
                     <div className="flex items-center gap-2 flex-wrap">
                       <Link href={`/eventos/${e.evento_id}/equipamentos`} className="text-blue-400 hover:underline truncate max-w-full">
                         {rotuloProva({ numero: e.evento_numero || "?", nome: e.evento_nome || "", data: e.evento_data })}
@@ -473,8 +491,14 @@ export default function EquipamentosPage() {
                   </button>
                   <button
                     onClick={() => remover(e)}
-                    disabled={!!e.evento_id}
-                    title={e.evento_id ? "Libere da prova antes de excluir" : undefined}
+                    disabled={!!e.evento_id || e.status === "em_campo"}
+                    title={
+                      e.status === "em_campo"
+                        ? "Registre o retorno antes de excluir"
+                        : e.evento_id
+                          ? "Libere da prova antes de excluir"
+                          : undefined
+                    }
                     className="text-red-400 hover:text-red-300 disabled:opacity-40"
                   >
                     Excluir
