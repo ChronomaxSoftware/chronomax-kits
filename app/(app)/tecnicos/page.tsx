@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import BotaoConviteTecnico from "@/components/BotaoConviteTecnico";
+import { normalizarNome } from "@/lib/tecnico-match";
 
 type Tecnico = {
   id: number;
@@ -20,6 +21,26 @@ export default function TecnicosPage() {
   const [senha, setSenha] = useState("");
   const [editando, setEditando] = useState<Tecnico | null>(null);
   const [erro, setErro] = useState("");
+  const [busca, setBusca] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const senhaRef = useRef<HTMLInputElement>(null);
+
+  // Busca por nome (sem acento) ou por dígitos do telefone — filtra a tabela e alimenta as sugestões
+  const filtrados = useMemo(() => {
+    const q = normalizarNome(busca);
+    const dig = busca.replace(/\D/g, "");
+    if (!q) return lista;
+    return lista.filter(
+      (t) => normalizarNome(t.nome).includes(q) || (dig.length >= 3 && (t.telefone || "").replace(/\D/g, "").includes(dig))
+    );
+  }, [lista, busca]);
+
+  function selecionar(t: Tecnico) {
+    editar(t);
+    setBusca("");
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => senhaRef.current?.focus(), 50);
+  }
 
   async function carregar() {
     // tela de gestão precisa ver inativos (pra reativar/editar)
@@ -93,7 +114,55 @@ export default function TecnicosPage() {
         material dos eventos atribuídos a ele.
       </p>
 
-      <form onSubmit={salvar} className="bg-slate-800 rounded-xl p-4 mb-6 space-y-3">
+      <div className="relative mb-4">
+        <label htmlFor="busca-tecnico" className="block text-xs text-slate-400 mb-1">
+          🔍 Buscar técnico para definir a senha
+        </label>
+        <input
+          id="busca-tecnico"
+          type="search"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          autoComplete="off"
+          placeholder="Nome ou telefone"
+          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+        />
+        {busca.trim() && (
+          <ul className="absolute z-10 mt-1 w-full max-h-72 overflow-y-auto rounded-lg border border-slate-700 bg-slate-800 shadow-xl">
+            {filtrados.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-slate-400">Nenhum técnico encontrado</li>
+            ) : (
+              filtrados.slice(0, 10).map((t) => (
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => selecionar(t)}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-slate-700"
+                  >
+                    <span className="min-w-0">
+                      <span className={t.ativo ? "text-white" : "text-slate-500"}>{t.nome}</span>
+                      <span className="block text-xs text-slate-400">{t.telefone || "sem telefone"}</span>
+                    </span>
+                    <span className={`text-xs shrink-0 ${t.tem_senha ? "text-green-400" : "text-slate-500"}`}>
+                      {t.tem_senha ? "✓ tem acesso" : "sem acesso"}
+                    </span>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        )}
+      </div>
+
+      <form ref={formRef} onSubmit={salvar} className="bg-slate-800 rounded-xl p-4 mb-6 space-y-3 scroll-mt-4">
+        {editando && (
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 rounded-lg bg-blue-500/10 border border-blue-500/30 px-3 py-2">
+            <p className="text-sm text-blue-200">
+              Editando <strong>{editando.nome}</strong> — digite a senha e clique em Atualizar, ou mande o link.
+            </p>
+            {editando.ativo ? <BotaoConviteTecnico tecnico={editando} /> : null}
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs text-slate-400 mb-1">Nome</label>
@@ -129,6 +198,7 @@ export default function TecnicosPage() {
               {editando && editando.tem_senha ? <span className="text-green-400"> (já cadastrada)</span> : null}
             </label>
             <input
+              ref={senhaRef}
               type="password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
@@ -168,7 +238,7 @@ export default function TecnicosPage() {
               </tr>
             </thead>
             <tbody>
-              {lista.map((t) => (
+              {filtrados.map((t) => (
                 <tr key={t.id} className="border-t border-slate-700">
                   <td className="px-4 py-3 text-white">{t.nome}</td>
                   <td className="px-4 py-3 text-slate-300">{t.telefone || "-"}</td>
