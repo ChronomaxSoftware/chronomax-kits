@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import GraficoEstoque from "@/components/GraficoEstoque";
 
 type Produto = { id: number; nome: string; ativo: number; quantidade_estoque: number };
 
@@ -76,11 +77,13 @@ export default function ProdutosPage() {
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-4xl">
       <h1 className="text-2xl font-bold mb-2">Produtos & Estoque</h1>
       <p className="text-slate-400 text-sm mb-6">
         Cadastre os produtos e diga quantos você tem de cada. Isso é o que aparece em "estoque" no resumo da semana.
       </p>
+
+      <GraficoEstoque produtos={lista} />
 
       <form onSubmit={salvar} className="bg-slate-800 rounded-xl p-4 mb-6 flex flex-col sm:flex-row gap-3 sm:items-end">
         <div className="flex-1">
