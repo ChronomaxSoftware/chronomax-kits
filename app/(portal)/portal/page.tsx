@@ -21,15 +21,24 @@ type EventoPortal = {
   local_entrega: string | null;
   data_entrega: string | null;
   hora_entrega: string | null;
+  obs_recebimento: string | null;
+  obs_em: string | null;
+  confirmado_em: string | null;
   produtos: Produto[];
+  equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null; status: string }[];
 };
+
+function dataHora(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "" : d.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
 
 export default function PortalPage() {
   const [eventos, setEventos] = useState<EventoPortal[]>([]);
   const [carregando, setCarregando] = useState(true);
 
   async function carregar() {
-    setCarregando(true);
     try {
       const r = await fetch("/api/portal/eventos");
       if (r.ok) setEventos(await r.json());
@@ -52,7 +61,14 @@ export default function PortalPage() {
           <p>Nenhum evento atribuído a você ainda.</p>
         </div>
       ) : (
-        eventos.map((ev) => <CardEventoPortal key={ev.id} evento={ev} onSalvo={carregar} />)
+        eventos.map((ev) => (
+          // a chave muda quando o servidor confirma algo → o cartão recomeça com o estado salvo
+          <CardEventoPortal
+            key={`${ev.id}:${ev.confirmado_em}:${ev.obs_em}:${ev.produtos.map((p) => `${p.recebido}-${p.qtd_recebida}`).join()}`}
+            evento={ev}
+            onSalvo={carregar}
+          />
+        ))
       )}
     </div>
   );
@@ -78,6 +94,9 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
   );
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
+  const [erro, setErro] = useState("");
+  const [obs, setObs] = useState(evento.obs_recebimento || "");
+  const obsMudou = obs.trim() !== (evento.obs_recebimento || "").trim();
 
   const total = itens.length;
   const confirmados = itens.filter((i) => i.recebido).length;
@@ -102,29 +121,42 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
     setItens((arr) => arr.map((it) => ({ ...it, recebido: valor })));
   }
 
-  async function confirmar() {
+  async function enviar(corpo: Record<string, unknown>) {
     setSalvando(true);
     setSalvo(false);
+    setErro("");
     try {
       const r = await fetch(`/api/portal/eventos/${evento.id}/confirmar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          itens: itens.map((i) => ({
-            produto_id: i.produto_id,
-            recebido: i.recebido,
-            qtd_recebida: i.qtd_recebida,
-          })),
-        }),
+        body: JSON.stringify(corpo),
       });
       if (r.ok) {
         setSalvo(true);
         setTimeout(() => setSalvo(false), 2500);
         onSalvo();
+      } else {
+        const d = await r.json().catch(() => ({}));
+        setErro(d.error || "Não foi possível salvar. Tente de novo.");
       }
+    } catch {
+      setErro("Sem conexão. Tente de novo.");
     } finally {
       setSalvando(false);
     }
+  }
+
+  // Item a item (quando falta algo) — leva junto a observação
+  function confirmar() {
+    enviar({
+      itens: itens.map((i) => ({ produto_id: i.produto_id, recebido: i.recebido, qtd_recebida: i.qtd_recebida })),
+      observacao: obs,
+    });
+  }
+
+  function recebiTudo() {
+    if (!confirm("Confirmar que você recebeu TODO o material desta prova, na quantidade esperada?")) return;
+    enviar({ tudo: true, observacao: obs });
   }
 
   return (
@@ -142,6 +174,26 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
         <p className="text-xs text-amber-300 mt-1">
           🚚 {evento.local_entrega || "Entrega"} {evento.data_entrega ? `· ${evento.data_entrega}` : ""} {evento.hora_entrega || ""}
         </p>
+      )}
+      {evento.confirmado_em && (
+        <p className="text-xs text-green-400 mt-1">✓ Você confirmou o recebimento em {dataHora(evento.confirmado_em)}</p>
+      )}
+
+      {evento.equipamentos.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Aparelhos (patrimônio)</p>
+          <ul className="flex flex-wrap gap-1.5">
+            {evento.equipamentos.map((e) => (
+              <li
+                key={e.patrimonio}
+                className="rounded-full border border-slate-600 bg-slate-900 px-2.5 py-1 text-xs text-slate-200"
+              >
+                {e.tipo} · <span className="font-mono font-semibold text-white">{e.patrimonio}</span>
+                {e.numero_chip ? <span className="text-slate-400"> · {e.numero_chip}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {total === 0 ? (
@@ -193,14 +245,49 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
           </ul>
 
           <button
+            onClick={recebiTudo}
+            disabled={salvando}
+            className="mt-4 w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white font-semibold py-3 rounded-lg"
+          >
+            ✅ Recebi todo o material
+          </button>
+          <button
             onClick={confirmar}
             disabled={salvando}
-            className="mt-4 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white font-medium py-3 rounded-lg"
+            className="mt-2 w-full bg-slate-700 hover:bg-slate-600 disabled:bg-slate-600 text-white text-sm py-2.5 rounded-lg"
           >
-            {salvando ? "Salvando..." : salvo ? "✓ Confirmado!" : "Confirmar recebimento"}
+            {salvando ? "Salvando..." : salvo ? "✓ Salvo!" : "Faltou algo? Salvar o que marquei acima"}
           </button>
         </>
       )}
+
+      <div className="mt-4">
+        <label htmlFor={`obs-${evento.id}`} className="block text-xs text-slate-500 uppercase tracking-wide mb-1">
+          Observações
+        </label>
+        <textarea
+          id={`obs-${evento.id}`}
+          value={obs}
+          onChange={(e) => setObs(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="Ex.: veio 1 carregador a menos; roteador com a capa quebrada…"
+          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+        />
+        {evento.obs_em && !obsMudou && (
+          <p className="text-[11px] text-slate-500 mt-1">Enviada em {dataHora(evento.obs_em)}</p>
+        )}
+        {obsMudou && (
+          <button
+            onClick={() => enviar({ observacao: obs })}
+            disabled={salvando}
+            className="mt-2 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white text-sm py-2.5 rounded-lg"
+          >
+            {salvando ? "Enviando..." : "Enviar observação"}
+          </button>
+        )}
+      </div>
+      {erro && <p className="mt-2 text-sm text-red-400">{erro}</p>}
     </div>
   );
 }
