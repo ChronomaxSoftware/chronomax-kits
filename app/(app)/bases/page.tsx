@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { tipoDeProduto } from "@/lib/equipamentos";
 
 type Produto = { id: number; nome: string };
 type EstoqueItem = { produto_id: number; produto_nome: string; quantidade: number };
@@ -82,7 +84,12 @@ export default function BasesPage() {
       <h1 className="text-2xl font-bold mb-2">Estoque por base</h1>
       <p className="text-slate-400 text-sm mb-6">
         Defina a quantidade de cada produto disponível em cada base. Quando um evento acontece num estado com base
-        cadastrada, o consumo sai do estoque dessa base — não do total.
+        cadastrada, o consumo sai do estoque dessa base — não do total. Celular, Roteador, Notebook, Tablet e Totem
+        são contados automaticamente pelo{" "}
+        <Link href="/equipamentos" className="text-blue-400 hover:underline">
+          inventário de equipamentos
+        </Link>{" "}
+        (patrimônios da base, fora de manutenção).
       </p>
 
       <form onSubmit={adicionar} className="bg-slate-800 rounded-xl p-4 mb-6 flex gap-3 items-end flex-wrap">
@@ -128,6 +135,18 @@ export default function BasesPage() {
             <div className="space-y-2">
               {produtos.map((p) => {
                 const qtd = quantidadeAtual(b, p.id);
+                if (tipoDeProduto(p.nome)) {
+                  return (
+                    <div key={p.id} className="flex items-center gap-3">
+                      <span className="flex-1 text-sm text-slate-200">
+                        {p.nome} <span className="text-[10px] text-slate-500">inventário</span>
+                      </span>
+                      <span className="w-20 px-2 py-1 text-right text-slate-300" title="Contado pelo inventário de equipamentos">
+                        {qtd}
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <div key={p.id} className="flex items-center gap-3">
                     <span className="flex-1 text-sm text-slate-200">{p.nome}</span>
