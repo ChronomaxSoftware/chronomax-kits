@@ -17,6 +17,8 @@ import {
   formatarDataHora,
 } from "@/components/equipamentos/ui";
 import HistoricoEquipamento from "@/components/equipamentos/HistoricoEquipamento";
+import GraficoInventario from "@/components/equipamentos/GraficoInventario";
+import type { EventoPedido } from "@/lib/inventario-resumo";
 
 type Equipamento = {
   id: number;
@@ -238,6 +240,11 @@ export default function EquipamentosPage() {
         <Indicador titulo="Em campo" valor={contagem.em_campo} cor="text-sky-300" />
         <Indicador titulo="Em manutenção" valor={contagem.manutencao} cor="text-amber-300" />
       </div>
+
+      {!carregando && (
+        // /api/eventos devolve também os produtos de cada prova (usados no pedido da semana)
+        <GraficoInventario equipamentos={lista} eventos={eventos as unknown as EventoPedido[]} bases={bases} />
+      )}
 
       {erro && <Aviso tipo="erro" texto={erro} onFechar={() => setErro("")} />}
       {ok && <Aviso tipo="ok" texto={ok} onFechar={() => setOk("")} />}

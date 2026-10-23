@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbRun, dbAll, initDB } from "@/lib/db";
+import { tipoDeProduto } from "@/lib/equipamentos";
+import { contagemPorBase } from "@/lib/inventario-resumo";
 
 type BaseRow = { id: number; nome: string; uf: string; ordem: number };
 type EstoqueRow = { base_id: number; produto_id: number; quantidade: number; produto_nome: string };
@@ -12,12 +14,25 @@ export async function GET() {
      FROM estoque_base eb JOIN produtos p ON p.id = eb.produto_id`
   );
 
-  const out = bases.map((b) => ({
-    ...b,
-    estoque: estoque
-      .filter((e) => e.base_id === b.id)
-      .map(({ produto_id, produto_nome, quantidade }) => ({ produto_id, produto_nome, quantidade })),
-  }));
+  // Produtos que são equipamento (Celular, Roteador, ...): a quantidade por base vem do
+  // inventário de patrimônios (fora de manutenção), não do número digitado em estoque_base.
+  const produtos = await dbAll<{ id: number; nome: string }>("SELECT id, nome FROM produtos");
+  const equipamentos = await dbAll<{ tipo: string; status: string; base_id: number | null }>(
+    "SELECT tipo, status, base_id FROM equipamentos"
+  );
+  const contagem = contagemPorBase(equipamentos);
+
+  const out = bases.map((b) => {
+    const manuais = estoque
+      .filter((e) => e.base_id === b.id && !tipoDeProduto(e.produto_nome))
+      .map(({ produto_id, produto_nome, quantidade }) => ({ produto_id, produto_nome, quantidade, origem: "manual" }));
+    const doInventario = produtos.flatMap((p) => {
+      const t = tipoDeProduto(p.nome);
+      const quantidade = t ? contagem.get(`${b.id}:${t}`) || 0 : 0;
+      return quantidade > 0 ? [{ produto_id: p.id, produto_nome: p.nome, quantidade, origem: "inventario" }] : [];
+    });
+    return { ...b, estoque: [...doInventario, ...manuais] };
+  });
   return NextResponse.json(out);
 }
 
