@@ -26,6 +26,8 @@ type EventoPortal = {
   confirmado_em: string | null;
   produtos: Produto[];
   equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null; status: string }[];
+  finalizado: boolean;
+  logins: string | null;
 };
 
 function dataHora(iso: string | null) {
@@ -53,15 +55,18 @@ export default function PortalPage() {
 
   if (carregando) return <p className="text-slate-400 py-10 text-center">Carregando...</p>;
 
+  const proximas = eventos.filter((e) => !e.finalizado);
+  const finalizadas = eventos.filter((e) => e.finalizado);
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Minhas entregas</h1>
-      {eventos.length === 0 ? (
+      {proximas.length === 0 ? (
         <div className="text-center py-16 text-slate-400 bg-slate-800/50 rounded-xl">
-          <p>Nenhum evento atribuído a você ainda.</p>
+          <p>Nenhuma prova em aberto para você.</p>
         </div>
       ) : (
-        eventos.map((ev) => (
+        proximas.map((ev) => (
           // a chave muda quando o servidor confirma algo → o cartão recomeça com o estado salvo
           <CardEventoPortal
             key={`${ev.id}:${ev.confirmado_em}:${ev.obs_em}:${ev.produtos.map((p) => `${p.recebido}-${p.qtd_recebida}`).join()}`}
@@ -69,6 +74,18 @@ export default function PortalPage() {
             onSalvo={carregar}
           />
         ))
+      )}
+      {finalizadas.length > 0 && (
+        <details className="group">
+          <summary className="cursor-pointer select-none text-sm text-slate-400 hover:text-slate-200 py-2">
+            Provas finalizadas ({finalizadas.length})
+          </summary>
+          <div className="space-y-3 mt-2">
+            {[...finalizadas].reverse().map((ev) => (
+              <CardFinalizado key={ev.id} evento={ev} />
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );
@@ -179,6 +196,8 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
         <p className="text-xs text-green-400 mt-1">✓ Você confirmou o recebimento em {dataHora(evento.confirmado_em)}</p>
       )}
 
+      {evento.logins && <LoginsEntrega texto={evento.logins} />}
+
       {evento.equipamentos.length > 0 && (
         <div className="mt-4">
           <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Aparelhos (patrimônio)</p>
@@ -288,6 +307,66 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
         )}
       </div>
       {erro && <p className="mt-2 text-sm text-red-400">{erro}</p>}
+    </div>
+  );
+}
+
+/** Logins da entrega (RunKing etc.) cadastrados pela equipe no card "🔑 Logins" da prova. */
+function LoginsEntrega({ texto }: { texto: string }) {
+  const [copiado, setCopiado] = useState(false);
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      // sem permissão: o texto continua selecionável
+    }
+  }
+  return (
+    <div className="mt-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className="text-xs text-blue-200 uppercase tracking-wide">🔑 Logins para a entrega</p>
+        <button onClick={copiar} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded">
+          {copiado ? "✓ Copiado" : "Copiar"}
+        </button>
+      </div>
+      <pre className="whitespace-pre-wrap break-words font-mono text-sm text-white select-all">{texto}</pre>
+    </div>
+  );
+}
+
+/** Prova que já passou: só leitura. */
+function CardFinalizado({ evento }: { evento: EventoPortal }) {
+  return (
+    <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <span className="text-xs text-slate-500 font-mono">#{evento.numero}</span>
+        <span className="bg-slate-600 text-white text-xs font-semibold px-2 py-0.5 rounded">Finalizado</span>
+      </div>
+      <h2 className="font-bold text-slate-200 leading-tight">{evento.nome}</h2>
+      <p className="text-xs text-slate-400 mt-1">
+        📅 {evento.data}
+        {evento.cidade && <> · 📍 {evento.cidade}{evento.uf ? "/" + evento.uf : ""}</>}
+      </p>
+      {evento.confirmado_em && (
+        <p className="text-xs text-green-400 mt-1">✓ Recebimento confirmado em {dataHora(evento.confirmado_em)}</p>
+      )}
+      {evento.produtos.length > 0 && (
+        <ul className="mt-3 space-y-1 text-sm">
+          {evento.produtos.map((p) => (
+            <li key={p.id} className="flex justify-between gap-2 text-slate-300">
+              <span>{p.nome}</span>
+              <span className="text-xs text-slate-400 whitespace-nowrap">
+                {p.recebido ? `✓ ${p.qtd_recebida ?? p.quantidade}/${p.quantidade}` : `— /${p.quantidade}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {evento.obs_recebimento && (
+        <p className="mt-3 whitespace-pre-wrap text-xs text-slate-400">📝 {evento.obs_recebimento}</p>
+      )}
     </div>
   );
 }
