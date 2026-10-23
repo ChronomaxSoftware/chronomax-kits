@@ -22,6 +22,19 @@ describe("estoqueDaSemana", () => {
     ]);
   });
 
+  it("filtra as provas pela base", () => {
+    const l = estoqueDaSemana(
+      produtos,
+      [
+        { data: "28/10/2026", uf: "RS", produtos: [{ id: 2, quantidade: 4 }] },
+        { data: "28/10/2026", uf: "SP", produtos: [{ id: 2, quantidade: 5 }] },
+      ],
+      new Date(2026, 9, 26),
+      (ev) => ev.uf === "RS"
+    );
+    expect(l.find((x) => x.id === 2)?.alocado).toBe(4);
+  });
+
   it("produto sem estoque mas alocado aparece como falta", () => {
     const l = estoqueDaSemana(produtos, [{ data: "27/10/2026", produtos: [{ id: 4, quantidade: 3 }] }], new Date(2026, 9, 26));
     expect(l.find((x) => x.id === 4)).toEqual({ id: 4, nome: "Carregador", total: 0, alocado: 3, disponivel: 0, falta: 3 });
