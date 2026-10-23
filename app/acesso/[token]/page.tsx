@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 export default function AcessoPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const router = useRouter();
-  const [info, setInfo] = useState<{ nome: string; login: string } | null>(null);
+  const [info, setInfo] = useState<{ modo: "criar_senha" | "login"; nome: string; login: string } | null>(null);
   const [invalido, setInvalido] = useState("");
   const [senha, setSenha] = useState("");
   const [senha2, setSenha2] = useState("");
@@ -23,6 +23,32 @@ export default function AcessoPage({ params }: { params: Promise<{ token: string
       })
       .catch(() => setInvalido("Sem conexão. Tente abrir o link de novo."));
   }, [token]);
+
+  // Link já usado: é o atalho de login (telefone preenchido, só digita a senha)
+  async function entrar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!info) return;
+    setErro("");
+    setEnviando(true);
+    try {
+      const r = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: info.login, password: senha }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setErro(d.error || "Senha incorreta.");
+        return;
+      }
+      router.push("/portal");
+      router.refresh();
+    } catch {
+      setErro("Sem conexão. Tente de novo.");
+    } finally {
+      setEnviando(false);
+    }
+  }
 
   async function criar(e: React.FormEvent) {
     e.preventDefault();
@@ -68,6 +94,36 @@ export default function AcessoPage({ params }: { params: Promise<{ token: string
           </>
         ) : !info ? (
           <p className="text-slate-400 text-sm">Carregando…</p>
+        ) : info.modo === "login" ? (
+          <form onSubmit={entrar}>
+            <p className="text-white mb-1">Olá, {info.nome.split(" ")[0]}!</p>
+            <p className="text-slate-400 text-sm mb-5">Digite a sua senha para entrar.</p>
+            <label htmlFor="tel" className="block text-sm text-slate-300 mb-1">
+              Telefone
+            </label>
+            <input id="tel" value={info.login} readOnly className={`${caixa} text-slate-400`} />
+            <label htmlFor="senha-login" className="block text-sm text-slate-300 mb-1">
+              Senha
+            </label>
+            <input
+              id="senha-login"
+              type="password"
+              autoComplete="current-password"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              className={caixa}
+              autoFocus
+            />
+            {erro && <p className="text-red-400 text-sm mb-3">{erro}</p>}
+            <button
+              type="submit"
+              disabled={enviando || !senha}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white font-medium py-2.5 rounded-lg"
+            >
+              {enviando ? "Entrando…" : "Entrar"}
+            </button>
+            <p className="text-xs text-slate-500 mt-4">Esqueceu a senha? Peça para a equipe Chronomax um novo link.</p>
+          </form>
         ) : (
           <form onSubmit={criar}>
             <p className="text-white mb-1">Olá, {info.nome.split(" ")[0]}!</p>

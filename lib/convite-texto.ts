@@ -5,15 +5,13 @@
 
 import { loginDeTelefone } from "./login-tecnico";
 
-export const VALIDADE_CONVITE_DIAS = 7;
-
 /** Mensagem pronta para o WhatsApp do técnico. */
 export function mensagemConvite(nome: string, link: string): string {
   const primeiro = String(nome || "").trim().split(/\s+/)[0] || "";
   return (
     `Olá${primeiro ? ` ${primeiro}` : ""}! Este é o seu acesso ao portal de entregas da Chronomax.\n\n` +
-    `Abra o link, crie a sua senha e pronto:\n${link}\n\n` +
-    `Depois é só entrar com o seu telefone e essa senha. O link vale ${VALIDADE_CONVITE_DIAS} dias e funciona uma vez.`
+    `Na primeira vez, abra o link e crie a sua senha:\n${link}\n\n` +
+    `Guarde este link: ele é o seu acesso. Nas próximas vezes ele abre o login com o seu telefone, é só digitar a senha.`
   );
 }
 
