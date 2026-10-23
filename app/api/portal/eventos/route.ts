@@ -3,8 +3,8 @@ import { dbAll, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { parseDataBR } from "@/lib/semana";
 
-/** O portal mostra só as provas de 7 dias atrás em diante (sem o histórico antigo). */
-const DIAS_PASSADOS = 7;
+/** Histórico: provas de até 30 dias atrás aparecem como "Finalizado" (só leitura). */
+const DIAS_PASSADOS = 30;
 
 export async function GET() {
   await initDB();
@@ -24,25 +24,32 @@ export async function GET() {
     local_entrega: string | null;
     data_entrega: string | null;
     hora_entrega: string | null;
+    usuarios_evento: string | null;
     obs_recebimento: string | null;
     obs_em: string | null;
     confirmado_em: string | null;
   }>(
     `SELECT e.id, e.numero, e.nome, e.data, e.cidade, e.uf, e.local_entrega, e.data_entrega, e.hora_entrega,
-            et.obs_recebimento, et.obs_em, et.confirmado_em
+            e.usuarios_evento, et.obs_recebimento, et.obs_em, et.confirmado_em
      FROM evento_tecnicos et JOIN eventos e ON e.id = et.evento_id
      WHERE et.tecnico_id = ?`,
     tid
   );
 
-  const corte = new Date();
-  corte.setHours(0, 0, 0, 0);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const corte = new Date(hoje);
   corte.setDate(corte.getDate() - DIAS_PASSADOS);
   const eventos = todos
     .map((e) => ({ e, d: parseDataBR(e.data) }))
     .filter((x) => x.d === null || x.d >= corte)
     .sort((a, b) => (a.d?.getTime() ?? Infinity) - (b.d?.getTime() ?? Infinity))
-    .map((x) => x.e);
+    .map(({ e, d }) => {
+      const finalizado = !!d && d < hoje;
+      // Logins da entrega (card "🔑 Logins" da prova) só enquanto a prova não passou
+      const { usuarios_evento, ...resto } = e;
+      return { ...resto, finalizado, logins: finalizado ? null : usuarios_evento?.trim() || null };
+    });
 
   const result = [];
   for (const ev of eventos) {

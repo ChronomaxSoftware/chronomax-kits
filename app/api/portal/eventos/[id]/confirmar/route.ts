@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbAll, dbGet, dbRun, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { parseDataBR } from "@/lib/semana";
 
 /**
  * POST /api/portal/eventos/[id]/confirmar
@@ -24,6 +25,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   );
   if (!link) {
     return NextResponse.json({ error: "Você não está atribuído a este evento" }, { status: 403 });
+  }
+
+  const ev = await dbGet<{ data: string }>("SELECT data FROM eventos WHERE id = ?", id);
+  const dataProva = parseDataBR(ev?.data);
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  if (dataProva && dataProva < hoje) {
+    return NextResponse.json({ error: "Prova finalizada — não dá mais para alterar." }, { status: 409 });
   }
 
   const body = await req.json().catch(() => ({}));
