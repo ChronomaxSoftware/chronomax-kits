@@ -6,10 +6,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const { nome, ativo, quantidade_estoque } = await req.json();
   await dbRun(
-    "UPDATE produtos SET nome = ?, ativo = ?, quantidade_estoque = ? WHERE id = ?",
+    // quantidade_estoque é legado (o estoque agora fica no Inventário): sem o campo, mantém o valor
+    "UPDATE produtos SET nome = ?, ativo = ?, quantidade_estoque = COALESCE(?, quantidade_estoque) WHERE id = ?",
     nome,
     ativo ? 1 : 0,
-    quantidade_estoque ?? 0,
+    quantidade_estoque ?? null,
     id
   );
   return NextResponse.json({ ok: true });

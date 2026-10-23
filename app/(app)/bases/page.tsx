@@ -4,24 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { tipoDeProduto } from "@/lib/equipamentos";
 
-type Produto = { id: number; nome: string };
 type EstoqueItem = { produto_id: number; produto_nome: string; quantidade: number };
 type Base = { id: number; nome: string; uf: string; ordem: number; estoque: EstoqueItem[] };
 
 export default function BasesPage() {
   const [bases, setBases] = useState<Base[]>([]);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
   const [novoNome, setNovoNome] = useState("");
   const [novoUf, setNovoUf] = useState("");
-  const [salvandoId, setSalvandoId] = useState<number | null>(null);
 
   async function carregar() {
-    const [b, p] = await Promise.all([
-      fetch("/api/bases").then((r) => r.json()),
-      fetch("/api/produtos").then((r) => r.json()),
-    ]);
-    setBases(b);
-    setProdutos(p);
+    setBases(await fetch("/api/bases").then((r) => r.json()));
   }
 
   useEffect(() => {
@@ -47,49 +39,19 @@ export default function BasesPage() {
     carregar();
   }
 
-  function quantidadeAtual(base: Base, produto_id: number): number {
-    return base.estoque.find((e) => e.produto_id === produto_id)?.quantidade || 0;
-  }
-
-  function setQuantidadeLocal(baseId: number, produto_id: number, qtd: number) {
-    setBases((bs) =>
-      bs.map((b) => {
-        if (b.id !== baseId) return b;
-        const existe = b.estoque.find((e) => e.produto_id === produto_id);
-        const produto_nome = produtos.find((p) => p.id === produto_id)?.nome || "";
-        const novoEstoque = existe
-          ? b.estoque.map((e) => (e.produto_id === produto_id ? { ...e, quantidade: qtd } : e))
-          : [...b.estoque, { produto_id, produto_nome, quantidade: qtd }];
-        return { ...b, estoque: novoEstoque };
-      })
-    );
-  }
-
-  async function salvarEstoque(base: Base) {
-    setSalvandoId(base.id);
-    await fetch(`/api/bases/${base.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        estoque: produtos.map((p) => ({ produto_id: p.id, quantidade: quantidadeAtual(base, p.id) })),
-      }),
-    });
-    setSalvandoId(null);
-    setTimeout(() => setSalvandoId(null), 1500);
-    carregar();
-  }
-
   return (
     <div className="max-w-5xl">
-      <h1 className="text-2xl font-bold mb-2">Estoque por base</h1>
+      <h1 className="text-2xl font-bold mb-2">Bases</h1>
       <p className="text-slate-400 text-sm mb-6">
-        Defina a quantidade de cada produto disponível em cada base. Quando um evento acontece num estado com base
-        cadastrada, o consumo sai do estoque dessa base — não do total. Celular, Roteador, Notebook, Tablet e Totem
-        são contados automaticamente pelo{" "}
+        Cadastro das bases (a UF liga a prova à base). As quantidades são editadas no{" "}
         <Link href="/equipamentos" className="text-blue-400 hover:underline">
-          inventário de equipamentos
-        </Link>{" "}
-        (patrimônios da base, fora de manutenção).
+          Inventário
+        </Link>
+        : equipamentos por patrimônio e{" "}
+        <Link href="/equipamentos/acessorios" className="text-blue-400 hover:underline">
+          acessórios por quantidade
+        </Link>
+        .
       </p>
 
       <form onSubmit={adicionar} className="bg-slate-800 rounded-xl p-4 mb-6 flex gap-3 items-end flex-wrap">
@@ -132,43 +94,25 @@ export default function BasesPage() {
               </button>
             </div>
 
-            <div className="space-y-2">
-              {produtos.map((p) => {
-                const qtd = quantidadeAtual(b, p.id);
-                if (tipoDeProduto(p.nome)) {
-                  return (
-                    <div key={p.id} className="flex items-center gap-3">
-                      <span className="flex-1 text-sm text-slate-200">
-                        {p.nome} <span className="text-[10px] text-slate-500">inventário</span>
+            {b.estoque.length === 0 ? (
+              <p className="text-sm text-slate-500">Nada cadastrado nesta base.</p>
+            ) : (
+              <ul className="space-y-1">
+                {[...b.estoque]
+                  .sort((x, y) => x.produto_nome.localeCompare(y.produto_nome, "pt-BR"))
+                  .map((e) => (
+                    <li key={e.produto_id} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-200">
+                        {e.produto_nome}{" "}
+                        <span className="text-[10px] text-slate-500">
+                          {tipoDeProduto(e.produto_nome) ? "patrimônios" : "acessório"}
+                        </span>
                       </span>
-                      <span className="w-20 px-2 py-1 text-right text-slate-300" title="Contado pelo inventário de equipamentos">
-                        {qtd}
-                      </span>
-                    </div>
-                  );
-                }
-                return (
-                  <div key={p.id} className="flex items-center gap-3">
-                    <span className="flex-1 text-sm text-slate-200">{p.nome}</span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={qtd}
-                      onChange={(e) => setQuantidadeLocal(b.id, p.id, parseInt(e.target.value) || 0)}
-                      className="w-20 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white text-right"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => salvarEstoque(b)}
-              disabled={salvandoId === b.id}
-              className="mt-3 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm"
-            >
-              {salvandoId === b.id ? "Salvando..." : "Salvar estoque"}
-            </button>
+                      <span className="text-white font-semibold">{e.quantidade}</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
           </div>
         ))}
       </div>

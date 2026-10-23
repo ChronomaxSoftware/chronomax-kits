@@ -6,7 +6,7 @@
 import { chaveSemana, parseDataBR } from "./semana";
 
 export type ProdutoEstoque = { id: number; nome: string; quantidade_estoque: number | null };
-export type EventoUso = { data: string; produtos: { id: number; quantidade: number }[] };
+export type EventoUso = { data: string; uf?: string | null; produtos: { id: number; quantidade: number }[] };
 
 export type LinhaEstoque = {
   id: number;
@@ -17,12 +17,18 @@ export type LinhaEstoque = {
   falta: number; // alocado acima do total
 };
 
-export function estoqueDaSemana(produtos: ProdutoEstoque[], eventos: EventoUso[], inicioSemana: Date): LinhaEstoque[] {
+/** `daBase` restringe as provas (ex.: pela UF da base escolhida); sem ele, conta todas. */
+export function estoqueDaSemana(
+  produtos: ProdutoEstoque[],
+  eventos: EventoUso[],
+  inicioSemana: Date,
+  daBase: (ev: EventoUso) => boolean = () => true
+): LinhaEstoque[] {
   const chave = chaveSemana(inicioSemana);
   const uso = new Map<number, number>();
   for (const ev of eventos) {
     const d = parseDataBR(ev.data);
-    if (!d || chaveSemana(d) !== chave) continue;
+    if (!d || chaveSemana(d) !== chave || !daBase(ev)) continue;
     for (const p of ev.produtos) uso.set(p.id, (uso.get(p.id) || 0) + (Number(p.quantidade) || 0));
   }
   return produtos

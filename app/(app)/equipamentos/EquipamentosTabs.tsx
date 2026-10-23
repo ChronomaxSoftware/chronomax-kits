@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { EVENTO_EQUIPAMENTOS_MUDOU } from "@/components/equipamentos/ui";
 
 const abas = [
-  { href: "/equipamentos", label: "Inventário" },
+  { href: "/equipamentos", label: "Equipamentos" },
+  { href: "/equipamentos/acessorios", label: "Acessórios" },
   { href: "/equipamentos/pendentes", label: "Pendentes de retorno" },
 ];
 
