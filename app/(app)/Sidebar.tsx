@@ -12,7 +12,6 @@ const LINKS = [
   { href: "/equipamentos", label: "Inventário" },
   { href: "/produtos", label: "Produtos (catálogo)" },
   { href: "/bases", label: "Bases" },
-  { href: "/celulares-chip", label: "Celulares com chip (legado)" },
   { href: "/alugados", label: "Alugados" },
   { href: "/staff", label: "Controle de Staff" },
   { href: "/config", label: "Configurações" },

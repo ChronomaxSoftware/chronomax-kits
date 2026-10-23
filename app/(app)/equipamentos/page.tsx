@@ -230,7 +230,10 @@ export default function EquipamentosPage() {
     <div className="space-y-6">
       <p className="text-slate-400 text-sm">
         Cada aparelho é controlado pelo <strong className="text-slate-300">patrimônio</strong>: separado para a prova →
-        saída → retorno conferido. Um equipamento só pode estar em uma prova por vez.
+        saída → retorno conferido. Um equipamento só pode estar em uma prova por vez.{" "}
+        <Link href="/celulares-chip" className="text-slate-500 hover:text-slate-300 underline">
+          Ver lista antiga de celulares com chip
+        </Link>
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
