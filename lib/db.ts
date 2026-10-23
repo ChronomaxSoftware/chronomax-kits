@@ -380,6 +380,12 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     // Função e data/hora da atribuição do técnico de entrega de kit ao evento
     ["evento_tecnicos", "funcao", "ALTER TABLE evento_tecnicos ADD COLUMN funcao TEXT"],
     ["evento_tecnicos", "atribuido_em", "ALTER TABLE evento_tecnicos ADD COLUMN atribuido_em TEXT"],
+    // Portal do técnico: observação dele sobre o material e quando confirmou que recebeu tudo
+    ["evento_tecnicos", "obs_recebimento", "ALTER TABLE evento_tecnicos ADD COLUMN obs_recebimento TEXT"],
+    ["evento_tecnicos", "obs_em", "ALTER TABLE evento_tecnicos ADD COLUMN obs_em TEXT"],
+    ["evento_tecnicos", "confirmado_em", "ALTER TABLE evento_tecnicos ADD COLUMN confirmado_em TEXT"],
+    // Usuários do escritório podem ser desativados (perdem o acesso sem apagar o histórico)
+    ["users", "ativo", "ALTER TABLE users ADD COLUMN ativo INTEGER DEFAULT 1"],
     // Saída/retorno de equipamentos (status em_campo): quando saiu, quem registrou e a
     // prova "congelada" em texto — continua legível se a prova sumir do Gestão.
     ["equipamentos", "saida_em", "ALTER TABLE equipamentos ADD COLUMN saida_em TEXT"],

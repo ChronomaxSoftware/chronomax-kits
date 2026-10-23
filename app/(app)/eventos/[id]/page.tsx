@@ -41,7 +41,16 @@ type Evento = {
   url_site_oficial: string | null;
   links_evento: string | null;
   usuarios_evento: string | null;
-  tecnicos: { id: number; nome: string; telefone: string | null; funcao?: string | null; atribuido_em?: string | null }[];
+  tecnicos: {
+    id: number;
+    nome: string;
+    telefone: string | null;
+    funcao?: string | null;
+    atribuido_em?: string | null;
+    obs_recebimento?: string | null;
+    obs_em?: string | null;
+    confirmado_em?: string | null;
+  }[];
   produtos: { id: number; nome: string; quantidade: number; recebido?: number; qtd_recebida?: number | null; recebido_em?: string | null }[];
 };
 
@@ -754,6 +763,30 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                   </li>
                 ))}
               </ul>
+            )}
+            {evento.tecnicos.some((t) => t.confirmado_em || t.obs_recebimento) && (
+              <div className="mt-3 pt-3 border-t border-slate-700 space-y-2">
+                {evento.tecnicos
+                  .filter((t) => t.confirmado_em || t.obs_recebimento)
+                  .map((t) => (
+                    <div key={t.id} className="text-sm">
+                      <p className="text-slate-200">
+                        {t.nome}
+                        {t.confirmado_em && (
+                          <span className="text-green-400 text-xs">
+                            {" "}
+                            · ✓ recebeu tudo em {new Date(t.confirmado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                          </span>
+                        )}
+                      </p>
+                      {t.obs_recebimento && (
+                        <p className="mt-1 whitespace-pre-wrap rounded bg-amber-500/10 border border-amber-500/30 px-2 py-1 text-xs text-amber-200">
+                          📝 {t.obs_recebimento}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+              </div>
             )}
           </Card>
         </div>

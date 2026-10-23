@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AlterarSenha from "./AlterarSenha";
+import UsuariosAcessos from "./UsuariosAcessos";
 
 export default function ConfigPage() {
   const [usuario, setUsuario] = useState("");
@@ -46,7 +47,7 @@ export default function ConfigPage() {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       <h1 className="text-2xl font-bold mb-2">Configurações</h1>
       <p className="text-slate-400 text-sm mb-6">
         Credenciais do Gestão usadas para sincronização automática. A senha é salva criptografada no banco local.
@@ -110,6 +111,7 @@ export default function ConfigPage() {
       </form>
 
       <AlterarSenha />
+      <UsuariosAcessos />
     </div>
   );
 }

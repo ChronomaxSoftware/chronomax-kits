@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { sessionOptions, SessionData } from "@/lib/session";
+import { sessaoAtiva } from "@/lib/acesso-ativo";
 
 export async function proxy(req: NextRequest) {
   const res = NextResponse.next();
@@ -20,6 +21,15 @@ export async function proxy(req: NextRequest) {
 
   if (!session.isLoggedIn) {
     return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  // Usuário/técnico desativado (ou técnico sem senha) perde o acesso mesmo com o cookie válido
+  if (!(await sessaoAtiva(session))) {
+    const sair = pathname.startsWith("/api/")
+      ? NextResponse.json({ error: "Seu acesso foi encerrado. Entre novamente." }, { status: 401 })
+      : NextResponse.redirect(new URL("/login", req.url));
+    (await getIronSession<SessionData>(req, sair, sessionOptions)).destroy();
+    return sair;
   }
 
   // Técnico acessa o portal (inclui /portal/staff), as APIs do portal e as APIs do staff

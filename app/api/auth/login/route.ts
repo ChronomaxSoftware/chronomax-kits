@@ -14,8 +14,8 @@ export async function POST(req: NextRequest) {
 
   // 1. Tenta admin (tabela users)
   const user = await dbGet<{ id: number; username: string; password_hash: string; name: string }>(
-    "SELECT id, username, password_hash, name FROM users WHERE username = ?",
-    username
+    "SELECT id, username, password_hash, name FROM users WHERE username = ? AND COALESCE(ativo, 1) = 1",
+    String(username).trim().toLowerCase()
   );
   if (user && bcrypt.compareSync(password, user.password_hash)) {
     const session = await getSession();

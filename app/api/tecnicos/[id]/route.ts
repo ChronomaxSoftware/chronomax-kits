@@ -45,6 +45,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     updates.push("login = ?");
     vals.push(login);
   }
+  // Tirar o acesso ao portal: apaga a senha (o proxy encerra a sessão dele)
+  if (body.remover_acesso === true) {
+    updates.push("senha_hash = NULL");
+  }
   // Só troca a senha quando vier preenchida (em branco mantém a atual)
   if (body.senha) {
     updates.push("senha_hash = ?");
