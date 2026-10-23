@@ -7,7 +7,7 @@ import { textoNotaFiscalSemana } from "@/lib/nota-fiscal";
 import { textoTecnicosSemana } from "@/lib/txt-tecnicos";
 import { parseDataBR, inicioSemana, fimSemana, formatBR, chaveSemana, dataNaJanela, JANELA_SEMANAS } from "@/lib/semana";
 
-type Produto = { id: number; nome: string; quantidade_estoque: number };
+type Produto = { id: number; nome: string };
 
 type EstoqueBase = { produto_id: number; produto_nome: string; quantidade: number };
 type Base = { id: number; nome: string; uf: string; ordem: number; estoque: EstoqueBase[] };
@@ -693,11 +693,11 @@ function ResumoSemanal({
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-slate-200">Estoque usado nesta semana</h3>
         <div className="flex gap-3">
-          <Link href="/bases" className="text-xs text-blue-400 hover:text-blue-300">
-            Editar bases →
+          <Link href="/equipamentos" className="text-xs text-blue-400 hover:text-blue-300">
+            Inventário →
           </Link>
-          <Link href="/produtos" className="text-xs text-blue-400 hover:text-blue-300">
-            Editar produtos →
+          <Link href="/bases" className="text-xs text-blue-400 hover:text-blue-300">
+            Bases →
           </Link>
         </div>
       </div>
@@ -717,9 +717,16 @@ function ResumoSemanal({
                 <h4 className="text-sm font-semibold text-amber-300">
                   Eventos sem base associada
                 </h4>
-                <span className="text-[10px] text-slate-500">cadastre a UF em /bases</span>
+                <span className="text-[10px] text-slate-500">estoque = soma de todas as bases</span>
               </div>
-              <ProdutoGrid produtos={produtos} uso={semBase} estoque={(p) => p.quantidade_estoque || 0} />
+              {/* Prova sem base: compara com o total do inventário (todas as bases) */}
+              <ProdutoGrid
+                produtos={produtos}
+                uso={semBase}
+                estoque={(p) =>
+                  bases.reduce((s, b) => s + (b.estoque.find((e) => e.produto_id === p.id)?.quantidade || 0), 0)
+                }
+              />
             </div>
           )}
         </>

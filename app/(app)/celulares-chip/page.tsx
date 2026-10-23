@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type Celular = {
   id: number;
@@ -120,10 +121,15 @@ export default function CelularesChipPage() {
 
   return (
     <div className="max-w-6xl">
-      <h1 className="text-2xl font-bold mb-2">Celulares com chip</h1>
-      <p className="text-slate-400 text-sm mb-6">
-        Cadastre cada celular com chip ativo, número e onde ele está agora (base ou evento).
-      </p>
+      <h1 className="text-2xl font-bold mb-2">Celulares com chip (lista antiga)</h1>
+      <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+        Esta lista foi substituída pelo{" "}
+        <Link href="/equipamentos" className="underline hover:text-white">
+          Inventário
+        </Link>{" "}
+        (cada celular por patrimônio, com chip e operadora). Ela fica só para consulta: cadastre os aparelhos que ainda
+        usa no Inventário.
+      </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
         <div className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2">
