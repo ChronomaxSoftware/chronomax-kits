@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbBatch, dbGet, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { loginDeTelefone } from "@/lib/login-tecnico";
-import { expiracaoConvite, gerarTokenConvite, hashTokenConvite } from "@/lib/convite";
+import { SEM_VALIDADE, gerarTokenConvite, hashTokenConvite } from "@/lib/convite";
 
-// POST /api/tecnicos/[id]/convite — gera o link de acesso (cancela os anteriores não usados)
+// POST /api/tecnicos/[id]/convite — gera o link de acesso permanente (cancela os anteriores,
+// inclusive o já usado: o novo link permite criar a senha de novo, ex.: técnico esqueceu)
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
   const session = await getSession();
@@ -26,13 +27,12 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const token = gerarTokenConvite();
-  const expira_em = expiracaoConvite();
   await dbBatch([
-    { sql: "DELETE FROM convites_tecnico WHERE tecnico_id = ? AND usado_em IS NULL", args: [id] },
+    { sql: "DELETE FROM convites_tecnico WHERE tecnico_id = ?", args: [id] },
     {
       sql: "INSERT INTO convites_tecnico (tecnico_id, token_hash, expira_em, criado_por) VALUES (?, ?, ?, ?)",
-      args: [id, hashTokenConvite(token), expira_em, session.name || null],
+      args: [id, hashTokenConvite(token), SEM_VALIDADE, session.name || null],
     },
   ]);
-  return NextResponse.json({ token, expira_em, nome: tec.nome, telefone: tec.telefone });
+  return NextResponse.json({ token, nome: tec.nome, telefone: tec.telefone });
 }

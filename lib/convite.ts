@@ -1,11 +1,16 @@
 /**
- * Link de acesso do técnico: um código aleatório que ele abre para criar a própria senha.
- * Guardamos só o hash (sha256) — quem ler o banco não consegue usar o link. Vale 7 dias,
- * uma vez só; gerar outro cancela o anterior. (Só servidor: usa crypto.)
+ * Link de acesso do técnico: um código aleatório e permanente (não vence).
+ * - antes da senha existir: o técnico abre e cria a própria senha (uma vez só);
+ * - depois: o mesmo link abre o login com o telefone dele preenchido (atalho).
+ * Recriar a senha pelo link não é permitido — senão quem recebesse o link encaminhado
+ * poderia tomar a conta. Guardamos só o hash (sha256); gerar outro link cancela o anterior.
+ * (Só servidor: usa crypto.)
  */
 
 import { createHash, randomBytes } from "crypto";
-import { VALIDADE_CONVITE_DIAS } from "./convite-texto";
+
+/** O link não vence; a coluna expira_em (NOT NULL) recebe esta data "sem fim". */
+export const SEM_VALIDADE = "9999-12-31T23:59:59.000Z";
 
 export function gerarTokenConvite(): string {
   return randomBytes(32).toString("base64url");
@@ -15,16 +20,14 @@ export function hashTokenConvite(token: string): string {
   return createHash("sha256").update(String(token)).digest("hex");
 }
 
-export function expiracaoConvite(agora = new Date()): string {
-  return new Date(agora.getTime() + VALIDADE_CONVITE_DIAS * 86_400_000).toISOString();
-}
+export type ConviteRow = { usado_em: string | null; ativo: number; tem_senha: number };
 
-export type ConviteRow = { usado_em: string | null; expira_em: string };
+export type EstadoConvite = { modo: "criar_senha" | "login" } | { modo: "invalido"; erro: string };
 
-/** null = válido; senão a mensagem para o técnico. */
-export function motivoConviteInvalido(c: ConviteRow | undefined, agora = new Date()): string | null {
-  if (!c) return "Link inválido. Peça um novo link para a equipe Chronomax.";
-  if (c.usado_em) return "Este link já foi usado. Entre com o seu telefone e senha, ou peça um novo link.";
-  if (new Date(c.expira_em).getTime() <= agora.getTime()) return "Este link expirou. Peça um novo link para a equipe Chronomax.";
-  return null;
+export function estadoConvite(c: ConviteRow | undefined): EstadoConvite {
+  if (!c) return { modo: "invalido", erro: "Link inválido. Peça um novo link para a equipe Chronomax." };
+  if (!c.ativo) return { modo: "invalido", erro: "Seu cadastro está inativo. Fale com a equipe Chronomax." };
+  if (!c.usado_em) return { modo: "criar_senha" };
+  if (!c.tem_senha) return { modo: "invalido", erro: "Seu acesso foi removido. Fale com a equipe Chronomax." };
+  return { modo: "login" };
 }

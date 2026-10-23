@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { linkWhatsApp, mensagemConvite, VALIDADE_CONVITE_DIAS } from "@/lib/convite-texto";
+import { linkWhatsApp, mensagemConvite } from "@/lib/convite-texto";
 
 /**
  * "🔗 Link de acesso": gera o link para o técnico criar a própria senha e mostra
@@ -14,7 +14,7 @@ export default function BotaoConviteTecnico({ tecnico }: { tecnico: { id: number
   const [copiado, setCopiado] = useState(false);
 
   async function gerar() {
-    if (link && !confirm("Gerar um link novo? O anterior deixa de funcionar.")) return;
+    if (!confirm(`Gerar o link de ${tecnico.nome}? Um link anterior deixa de funcionar e o novo permite criar a senha de novo.`)) return;
     setErro("");
     setGerando(true);
     try {
@@ -52,7 +52,7 @@ export default function BotaoConviteTecnico({ tecnico }: { tecnico: { id: number
         <div className="mt-2 rounded-lg border border-slate-600 bg-slate-900 p-2 space-y-2 text-left">
           <p className="break-all font-mono text-[11px] text-slate-300 select-all">{link}</p>
           <p className="text-slate-500">
-            Vale {VALIDADE_CONVITE_DIAS} dias e funciona uma vez. O técnico cria a senha e já entra.
+            Não vence. Na 1ª vez o técnico cria a senha; depois o link abre o login com o telefone dele.
           </p>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={copiar} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded">
