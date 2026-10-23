@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import BotaoNotaFiscal from "@/components/BotaoNotaFiscal";
+import BotaoTxtSemana from "@/components/BotaoTxtSemana";
+import { textoNotaFiscalSemana } from "@/lib/nota-fiscal";
+import { textoTecnicosSemana } from "@/lib/txt-tecnicos";
 import { parseDataBR, inicioSemana, fimSemana, formatBR, chaveSemana, dataNaJanela, JANELA_SEMANAS } from "@/lib/semana";
 
 type Produto = { id: number; nome: string; quantidade_estoque: number };
@@ -522,7 +524,7 @@ export default function HomePage() {
               </p>
               <p className="text-xs text-slate-500">{eventosDaSemana.length} evento(s)</p>
               <div className="mt-1">
-                <BotaoNotaFiscal inicio={semanaAtual} fim={fim} eventos={eventosDaSemana} />
+                <BotoesTxtSemana inicio={semanaAtual} fim={fim} eventos={eventosDaSemana} />
               </div>
             </div>
             <button
@@ -611,7 +613,7 @@ export default function HomePage() {
                   </h3>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-slate-500">{lista.length} evento(s)</span>
-                    <BotaoNotaFiscal inicio={ini} fim={fimS} eventos={lista} />
+                    <BotoesTxtSemana inicio={ini} fim={fimS} eventos={lista} />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -644,6 +646,27 @@ export default function HomePage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** TXTs da semana: técnicos/início da entrega e nota fiscal dos equipamentos. */
+function BotoesTxtSemana({ inicio, fim, eventos }: { inicio: Date; fim: Date; eventos: Evento[] }) {
+  const periodo = `${formatBR(inicio)}_a_${formatBR(fim)}`.replace(/\//g, "-");
+  return (
+    <div className="inline-flex flex-wrap gap-2">
+      <BotaoTxtSemana
+        rotulo="📄 TXT técnicos"
+        titulo="Técnicos da semana"
+        nomeArquivo={`tecnicos_${periodo}.txt`}
+        gerar={() => textoTecnicosSemana(inicio, fim, eventos)}
+      />
+      <BotaoTxtSemana
+        rotulo="📄 TXT nota fiscal"
+        titulo="Nota fiscal — semana"
+        nomeArquivo={`nota-fiscal_${periodo}.txt`}
+        gerar={() => textoNotaFiscalSemana(inicio, fim, eventos)}
+      />
     </div>
   );
 }
