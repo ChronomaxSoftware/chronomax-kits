@@ -211,6 +211,15 @@ CREATE INDEX IF NOT EXISTS idx_equipamentos_tipo ON equipamentos(tipo);
 CREATE INDEX IF NOT EXISTS idx_equipamentos_evento ON equipamentos(evento_id);
 CREATE INDEX IF NOT EXISTS idx_equipamentos_status ON equipamentos(status);
 
+-- Último valor que veio do Gestão por produto da prova: separa o que o usuário editou
+-- no card Produtos (sync não mexe) do que segue o Gestão (ver lib/sync-quantidades.ts).
+CREATE TABLE IF NOT EXISTS evento_produtos_gestao (
+  evento_id INTEGER NOT NULL,
+  produto_id INTEGER NOT NULL,
+  quantidade INTEGER NOT NULL,
+  PRIMARY KEY (evento_id, produto_id)
+);
+
 CREATE TABLE IF NOT EXISTS equipamento_historico (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   equipamento_id INTEGER NOT NULL,
@@ -358,6 +367,8 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     ["eventos", "usuarios_evento", "ALTER TABLE eventos ADD COLUMN usuarios_evento TEXT"],
     ["eventos", "local_prova", "ALTER TABLE eventos ADD COLUMN local_prova TEXT"],
     ["eventos", "tipo_kit", "ALTER TABLE eventos ADD COLUMN tipo_kit TEXT"],
+    // Último qtd_celulares vindo do Gestão (o campo "Celulares" editado à mão não é sobrescrito)
+    ["eventos", "qtd_celulares_gestao", "ALTER TABLE eventos ADD COLUMN qtd_celulares_gestao INTEGER"],
     ["evento_equipe_gestao", "is_entrega_kit", "ALTER TABLE evento_equipe_gestao ADD COLUMN is_entrega_kit INTEGER DEFAULT 0"],
     ["evento_equipe_gestao", "cache_ek", "ALTER TABLE evento_equipe_gestao ADD COLUMN cache_ek INTEGER DEFAULT 0"],
     // Login do técnico (portal) — senha_hash; login tem índice único criado abaixo

@@ -5,6 +5,7 @@ import { scrapeGestao } from "@/lib/scraper-fetch";
 import { iniciarSync, setProgresso, finalizarSync } from "@/lib/sync-progress";
 import { normalizarNome } from "@/lib/tecnico-match";
 import { statementsApagarEventos } from "@/lib/eventos-remocao";
+import { quantidadeAposSync } from "@/lib/sync-quantidades";
 
 export const maxDuration = 60;
 
@@ -82,8 +83,30 @@ export async function POST(req: NextRequest) {
 
   // Cachear eventos existentes por numero
   const eventoByNumero = new Map<string, number>();
-  const eventosExistentes = await dbAll<{ id: number; numero: string }>("SELECT id, numero FROM eventos");
+  const eventosExistentes = await dbAll<{
+    id: number;
+    numero: string;
+    qtd_celulares: number | null;
+    qtd_celulares_gestao: number | null;
+  }>("SELECT id, numero, qtd_celulares, qtd_celulares_gestao FROM eventos");
   for (const e of eventosExistentes) eventoByNumero.set(e.numero, e.id);
+  const celularesPorEvento = new Map(eventosExistentes.map((e) => [e.id, e]));
+
+  // Quantidades atuais (card Produtos) e último valor do Gestão — para não sobrescrever o que
+  // o usuário editou (regra em lib/sync-quantidades.ts)
+  const chaveProd = (eid: number, pid: number) => `${eid}:${pid}`;
+  const qtdAtual = new Map<string, number>();
+  for (const p of await dbAll<{ evento_id: number; produto_id: number; quantidade: number }>(
+    "SELECT evento_id, produto_id, quantidade FROM evento_produtos"
+  )) {
+    qtdAtual.set(chaveProd(p.evento_id, p.produto_id), Number(p.quantidade) || 0);
+  }
+  const qtdGestao = new Map<string, number>();
+  for (const p of await dbAll<{ evento_id: number; produto_id: number; quantidade: number }>(
+    "SELECT evento_id, produto_id, quantidade FROM evento_produtos_gestao"
+  )) {
+    qtdGestao.set(chaveProd(p.evento_id, p.produto_id), Number(p.quantidade) || 0);
+  }
 
   // ── Fase 2: processar eventos e montar batch de escritas ──
 
@@ -175,15 +198,45 @@ export async function POST(req: NextRequest) {
     const temKit = ev.tem_entrega_kit ? 1 : 0;
 
     // Update evento (idempotente, roda pra todos — novos e existentes)
+    // qtd_celulares ("Celulares" do evento): editado à mão não é sobrescrito, salvo se o Gestão aumentar
+    const cel = celularesPorEvento.get(eid);
+    const qtdCelulares = cel
+      ? quantidadeAposSync(Number(cel.qtd_celulares) || 0, cel.qtd_celulares_gestao ?? null, ev.qtd_celulares || 0)
+      : ev.qtd_celulares;
     allStmts.push({
-      sql: `UPDATE eventos SET nome = ?, data = ?, cidade = ?, uf = ?, qtd_celulares = ?, dias_entrega = ?, qtd_atletas = ?, nivel = ?, url_gestao = ?, tem_kit = ?, local_prova = ?, url_site_oficial = ?, tipo_kit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      args: [ev.nome, ev.data, ev.cidade, ev.uf, ev.qtd_celulares, ev.dias_entrega, ev.qtd_atletas, ev.nivel, ev.url, temKit, ev.local_prova, ev.url_site_oficial, ev.tipo_kit, eid],
+      sql: `UPDATE eventos SET nome = ?, data = ?, cidade = ?, uf = ?, qtd_celulares = ?, qtd_celulares_gestao = ?, dias_entrega = ?, qtd_atletas = ?, nivel = ?, url_gestao = ?, tem_kit = ?, local_prova = ?, url_site_oficial = ?, tipo_kit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      args: [ev.nome, ev.data, ev.cidade, ev.uf, qtdCelulares, ev.qtd_celulares || 0, ev.dias_entrega, ev.qtd_atletas, ev.nivel, ev.url, temKit, ev.local_prova, ev.url_site_oficial, ev.tipo_kit, eid],
     });
 
-    // Produtos
-    if (ev.qtd_celulares > 0) allStmts.push({ sql: `INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?) ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = MAX(quantidade, excluded.quantidade)`, args: [eid, produtoCache.get("celular")!, ev.qtd_celulares] });
-    if (ev.qtd_totens > 0) allStmts.push({ sql: `INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?) ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = MAX(quantidade, excluded.quantidade)`, args: [eid, produtoCache.get("totem")!, ev.qtd_totens] });
-    if (ev.qtd_notebooks > 0) allStmts.push({ sql: `INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?) ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = MAX(quantidade, excluded.quantidade)`, args: [eid, produtoCache.get("notebook")!, ev.qtd_notebooks] });
+    // Produtos (card "Produtos"): o que o usuário editou não é sobrescrito, salvo se o Gestão
+    // aumentar o pedido. Valor 0 do Gestão é ignorado (como antes) — não apaga nada.
+    for (const [nome, qtdNova] of [
+      ["celular", ev.qtd_celulares],
+      ["totem", ev.qtd_totens],
+      ["notebook", ev.qtd_notebooks],
+    ] as const) {
+      if (!(qtdNova > 0)) continue;
+      const pid = produtoCache.get(nome)!;
+      const k = chaveProd(eid, pid);
+      const atual = qtdAtual.get(k);
+      const nova = quantidadeAposSync(atual ?? 0, qtdGestao.get(k) ?? null, qtdNova);
+      if (nova !== (atual ?? 0)) {
+        if (nova > 0) {
+          allStmts.push({
+            sql: `INSERT INTO evento_produtos (evento_id, produto_id, quantidade) VALUES (?, ?, ?)
+                  ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = excluded.quantidade`,
+            args: [eid, pid, nova],
+          });
+        } else {
+          allStmts.push({ sql: "DELETE FROM evento_produtos WHERE evento_id = ? AND produto_id = ?", args: [eid, pid] });
+        }
+      }
+      allStmts.push({
+        sql: `INSERT INTO evento_produtos_gestao (evento_id, produto_id, quantidade) VALUES (?, ?, ?)
+              ON CONFLICT(evento_id, produto_id) DO UPDATE SET quantidade = excluded.quantidade`,
+        args: [eid, pid, qtdNova],
+      });
+    }
 
     // Técnicos de entrega de kit → evento_tecnicos (com função e data/hora da atribuição).
     // RECONCILIA: só os técnicos de kit ATUAIS ficam. Antes só inseria (ON CONFLICT DO NOTHING)

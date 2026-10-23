@@ -13,6 +13,7 @@ export function statementsApagarEventos(ids: number[], motivo: string): { sql: s
     // Filhas com cascade lógico
     { sql: `DELETE FROM evento_tecnicos WHERE evento_id IN (${ph})`, args: [...ids] },
     { sql: `DELETE FROM evento_produtos WHERE evento_id IN (${ph})`, args: [...ids] },
+    { sql: `DELETE FROM evento_produtos_gestao WHERE evento_id IN (${ph})`, args: [...ids] },
     { sql: `DELETE FROM evento_itens_gestao WHERE evento_id IN (${ph})`, args: [...ids] },
     { sql: `DELETE FROM evento_equipe_gestao WHERE evento_id IN (${ph})`, args: [...ids] },
     { sql: `DELETE FROM evento_kits WHERE evento_id IN (${ph})`, args: [...ids] },
