@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import BotaoNotaFiscal from "@/components/BotaoNotaFiscal";
 import { parseDataBR, inicioSemana, fimSemana, formatBR, chaveSemana, dataNaJanela, JANELA_SEMANAS } from "@/lib/semana";
 
 type Produto = { id: number; nome: string; quantidade_estoque: number };
@@ -520,6 +521,9 @@ export default function HomePage() {
                 {formatBR(semanaAtual)} - {formatBR(fim)}
               </p>
               <p className="text-xs text-slate-500">{eventosDaSemana.length} evento(s)</p>
+              <div className="mt-1">
+                <BotaoNotaFiscal inicio={semanaAtual} fim={fim} eventos={eventosDaSemana} />
+              </div>
             </div>
             <button
               onClick={proximaSemana}
@@ -605,7 +609,10 @@ export default function HomePage() {
                   <h3 className="text-sm font-semibold text-slate-300">
                     Semana {formatBR(ini)} – {formatBR(fimS)}
                   </h3>
-                  <span className="text-xs text-slate-500">{lista.length} evento(s)</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-500">{lista.length} evento(s)</span>
+                    <BotaoNotaFiscal inicio={ini} fim={fimS} eventos={lista} />
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {lista.map((e) => (
