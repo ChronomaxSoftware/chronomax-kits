@@ -90,6 +90,7 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
   const [enviandoKit, setEnviandoKit] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
+  const [loginsCopiados, setLoginsCopiados] = useState(false);
   const [inventario, setInventario] = useState<EquipamentoResumo[]>([]);
 
   useEffect(() => {
@@ -566,7 +567,7 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
             )}
           </Card>
 
-          <Card titulo="📘 Book — Links e Usuários">
+          <Card titulo="📘 Book — Links">
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Links (1 por linha)</label>
@@ -576,18 +577,6 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                   rows={3}
                   placeholder="https://go.runking.com.br/login&#10;https://servicos.runking.com.br/run-the-bridge"
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  Usuários (1 por linha — formato livre, ex: <span className="font-mono">Master - email@x.com - 123456</span>)
-                </label>
-                <textarea
-                  value={usuariosEvento}
-                  onChange={(e) => setUsuariosEvento(e.target.value)}
-                  rows={4}
-                  placeholder="Master - master@iguana.com.br - 123456&#10;Numero - staff@iguana.com.br - 01&#10;Produto - produto@iguana.com.br - 02"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm font-mono"
                 />
               </div>
             </div>
@@ -644,6 +633,40 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
         </div>
 
         <div className="space-y-4">
+          <Card titulo="🔑 Logins da entrega de kit">
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400">
+                1 por linha, formato livre (ex.: <span className="font-mono">Master - email@x.com - 123456</span>). Também sai no book.
+              </p>
+              <textarea
+                value={usuariosEvento}
+                onChange={(e) => setUsuariosEvento(e.target.value)}
+                rows={5}
+                placeholder="Master - master@iguana.com.br - 123456&#10;Numero - staff@iguana.com.br - 01&#10;Produto - produto@iguana.com.br - 02"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm font-mono"
+              />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-slate-500">Grava em &quot;Salvar alterações&quot;.</span>
+                <button
+                  type="button"
+                  disabled={!usuariosEvento.trim()}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(usuariosEvento);
+                      setLoginsCopiados(true);
+                      setTimeout(() => setLoginsCopiados(false), 2000);
+                    } catch {
+                      // sem permissão de clipboard: dá pra selecionar o texto na caixa
+                    }
+                  }}
+                  className="bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white text-sm px-3 py-1.5 rounded-lg"
+                >
+                  {loginsCopiados ? "✓ Copiado" : "Copiar logins"}
+                </button>
+              </div>
+            </div>
+          </Card>
+
           <Card titulo="Produtos">
             {produtos.length === 0 ? (
               <p className="text-sm text-slate-400">

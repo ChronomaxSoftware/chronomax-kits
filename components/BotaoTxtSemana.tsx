@@ -1,11 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { formatBR } from "@/lib/semana";
-import { textoNotaFiscalSemana, type EventoNota } from "@/lib/nota-fiscal";
 
-/** Botão da semana: abre o TXT da nota fiscal (técnico, prova e equipamentos indo) pra copiar ou baixar. */
-export default function BotaoNotaFiscal({ inicio, fim, eventos }: { inicio: Date; fim: Date; eventos: EventoNota[] }) {
+/** Botão da semana que abre um TXT (gerado na hora) para copiar ou baixar. */
+export default function BotaoTxtSemana({
+  rotulo,
+  titulo,
+  nomeArquivo,
+  gerar,
+}: {
+  rotulo: string;
+  titulo: string;
+  nomeArquivo: string;
+  gerar: () => string;
+}) {
   const [texto, setTexto] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
 
@@ -25,7 +33,7 @@ export default function BotaoNotaFiscal({ inicio, fim, eventos }: { inicio: Date
     const url = URL.createObjectURL(new Blob([texto], { type: "text/plain;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `nota-fiscal_${formatBR(inicio).replace(/\//g, "-")}_a_${formatBR(fim).replace(/\//g, "-")}.txt`;
+    a.download = nomeArquivo;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -34,25 +42,22 @@ export default function BotaoNotaFiscal({ inicio, fim, eventos }: { inicio: Date
     <>
       <button
         type="button"
-        onClick={() => setTexto(textoNotaFiscalSemana(inicio, fim, eventos))}
+        onClick={() => setTexto(gerar())}
         className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded whitespace-nowrap"
       >
-        📄 TXT nota fiscal
+        {rotulo}
       </button>
 
       {texto !== null && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
-          onClick={() => setTexto(null)}
-        >
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setTexto(null)}>
           <div
             role="dialog"
-            aria-label="Texto para nota fiscal"
+            aria-label={titulo}
             className="bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg p-4 space-y-3"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-white">Nota fiscal — semana</h2>
+              <h2 className="font-semibold text-white">{titulo}</h2>
               <button onClick={() => setTexto(null)} aria-label="Fechar" className="text-slate-400 hover:text-white">
                 ✕
               </button>
@@ -61,7 +66,7 @@ export default function BotaoNotaFiscal({ inicio, fim, eventos }: { inicio: Date
               readOnly
               value={texto}
               onFocus={(e) => e.target.select()}
-              rows={16}
+              rows={18}
               className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono"
             />
             <div className="flex justify-end gap-2">
