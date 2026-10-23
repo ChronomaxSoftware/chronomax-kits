@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { normalizarNome } from "@/lib/tecnico-match";
+import BotaoConviteTecnico from "@/components/BotaoConviteTecnico";
 
 type Usuario = { id: number; username: string; name: string; ativo: number; created_at: string | null };
 type Tecnico = { id: number; nome: string; telefone: string | null; login: string | null; tem_senha: number; ativo: number };
@@ -91,7 +92,8 @@ export default function UsuariosAcessos() {
         <h2 className="text-lg font-semibold text-white">Usuários e acessos</h2>
         <p className="text-xs text-slate-400">
           Usuário do escritório tem acesso total. Técnico entra pelo telefone e vê só as provas dele, com o material e o
-          botão de confirmar o recebimento.
+          botão de confirmar o recebimento. Para o técnico, o mais fácil é mandar o 🔗 link de acesso: ele mesmo cria a
+          senha.
         </p>
       </div>
 
@@ -211,13 +213,16 @@ export default function UsuariosAcessos() {
                   ) : (
                     <span className="text-xs text-slate-500">sem acesso{t.telefone ? "" : " · sem telefone"}</span>
                   )}
+                  <div className="mt-1">
+                    <BotaoConviteTecnico tecnico={t} />
+                  </div>
                 </div>
                 <div className="flex gap-3 text-xs">
                   <button
                     onClick={() => { setSenhaDe({ tipo: "t", id: t.id, nome: t.nome }); setNovaSenha(""); }}
                     className="text-blue-400 hover:text-blue-300"
                   >
-                    {t.tem_senha ? "Trocar senha" : "Dar acesso"}
+                    {t.tem_senha ? "Trocar senha" : "Definir senha"}
                   </button>
                   {t.tem_senha ? (
                     <button

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import BotaoConviteTecnico from "@/components/BotaoConviteTecnico";
 
 type Tecnico = {
   id: number;
@@ -179,6 +180,11 @@ export default function TecnicosPage() {
                     ) : (
                       <span className="text-slate-500 text-sm">sem acesso</span>
                     )}
+                    {t.ativo ? (
+                      <div className="mt-1">
+                        <BotaoConviteTecnico tecnico={t} />
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 space-x-2 whitespace-nowrap">
                     <button onClick={() => editar(t)} className="text-blue-400 hover:text-blue-300 text-sm">

@@ -10,6 +10,7 @@ export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isLoginPath = pathname === "/login";
   const isApiAuth = pathname.startsWith("/api/auth");
+  if (pathname.startsWith("/acesso/")) return res;
 
   if (isLoginPath || isApiAuth) {
     if (isLoginPath && session.isLoggedIn) {

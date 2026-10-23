@@ -220,6 +220,18 @@ CREATE TABLE IF NOT EXISTS evento_produtos_gestao (
   PRIMARY KEY (evento_id, produto_id)
 );
 
+-- Link de acesso do técnico (cria a própria senha). Só o hash do código; 7 dias, uso único.
+CREATE TABLE IF NOT EXISTS convites_tecnico (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tecnico_id INTEGER NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  expira_em TEXT NOT NULL,
+  usado_em TEXT,
+  criado_por TEXT,
+  criado_em TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_convites_tecnico_tecnico ON convites_tecnico(tecnico_id);
+
 CREATE TABLE IF NOT EXISTS equipamento_historico (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   equipamento_id INTEGER NOT NULL,
@@ -386,6 +398,8 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     ["evento_tecnicos", "confirmado_em", "ALTER TABLE evento_tecnicos ADD COLUMN confirmado_em TEXT"],
     // Usuários do escritório podem ser desativados (perdem o acesso sem apagar o histórico)
     ["users", "ativo", "ALTER TABLE users ADD COLUMN ativo INTEGER DEFAULT 1"],
+    // Tutorial do portal mostrado no primeiro acesso do técnico
+    ["tecnicos", "tutorial_visto_em", "ALTER TABLE tecnicos ADD COLUMN tutorial_visto_em TEXT"],
     // Saída/retorno de equipamentos (status em_campo): quando saiu, quem registrou e a
     // prova "congelada" em texto — continua legível se a prova sumir do Gestão.
     ["equipamentos", "saida_em", "ALTER TABLE equipamentos ADD COLUMN saida_em TEXT"],
