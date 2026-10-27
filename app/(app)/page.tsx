@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import BotaoTxtSemana from "@/components/BotaoTxtSemana";
+import BotaoTxtSeparacao from "@/components/BotaoTxtSeparacao";
 import { textoNotaFiscalSemana } from "@/lib/nota-fiscal";
 import { textoTecnicosSemana } from "@/lib/txt-tecnicos";
 import { parseDataBR, inicioSemana, fimSemana, formatBR, chaveSemana, dataNaJanela, JANELA_SEMANAS } from "@/lib/semana";
@@ -650,7 +651,7 @@ export default function HomePage() {
   );
 }
 
-/** TXTs da semana: técnicos/início da entrega e nota fiscal dos equipamentos. */
+/** TXTs da semana: técnicos/início da entrega, nota fiscal dos equipamentos e separação por prova. */
 function BotoesTxtSemana({ inicio, fim, eventos }: { inicio: Date; fim: Date; eventos: Evento[] }) {
   const periodo = `${formatBR(inicio)}_a_${formatBR(fim)}`.replace(/\//g, "-");
   return (
@@ -667,6 +668,7 @@ function BotoesTxtSemana({ inicio, fim, eventos }: { inicio: Date; fim: Date; ev
         nomeArquivo={`nota-fiscal_${periodo}.txt`}
         gerar={() => textoNotaFiscalSemana(inicio, fim, eventos)}
       />
+      <BotaoTxtSeparacao inicio={inicio} fim={fim} eventos={eventos} nomeArquivo={`separacao_${periodo}.txt`} />
     </div>
   );
 }
