@@ -38,7 +38,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     "cronograma_evento", "passo_a_passo_kits", "entrega_locais_separados",
     "qtd_roteadores", "qtd_celulares_grupo_online", "qtd_celulares_produtos_online",
     "qtd_notebooks", "qtd_totens",
-    "url_site_oficial",
+    "url_site_oficial", "links_evento", "usuarios_evento",
   ];
   const updates: string[] = [];
   const values: unknown[] = [];
