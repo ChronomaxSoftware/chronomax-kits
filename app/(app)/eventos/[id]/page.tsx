@@ -41,6 +41,7 @@ type Evento = {
   url_site_oficial: string | null;
   links_evento: string | null;
   usuarios_evento: string | null;
+  qtd_notebook_atendimento: number;
   tecnicos: {
     id: number;
     nome: string;
@@ -298,6 +299,16 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
+          {evento.qtd_notebook_atendimento > 0 && (
+            <div className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 p-4">
+              <p className="text-xs text-cyan-200 uppercase tracking-wide">💻 Notebook para atendimento (Gestão)</p>
+              <p className="mt-1 text-white">
+                <span className="text-2xl font-bold">{evento.qtd_notebook_atendimento}</span>{" "}
+                {evento.qtd_notebook_atendimento === 1 ? "unidade" : "unidades"}
+                <span className="text-xs text-slate-400"> · Locação de Notebook para Eventos - Atendimento</span>
+              </p>
+            </div>
+          )}
           <Card titulo="Dados da entrega">
             <div className="grid grid-cols-2 gap-3">
               <div>
