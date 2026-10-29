@@ -36,6 +36,7 @@ type Evento = {
   tipo_kit: "entrega" | "sistema" | null;
   tecnicos: { id: number; nome: string; funcao?: string | null }[];
   produtos: { id: number; nome: string; quantidade: number }[];
+  qtd_notebook_atendimento: number;
 };
 
 const SEM_UF = "__sem_uf__";
@@ -930,6 +931,12 @@ function CardEvento({ evento, onAtualizar }: { evento: Evento; onAtualizar: (e: 
           <p className="text-[10px] text-slate-400 uppercase tracking-wide">técnicos</p>
         </div>
       </div>
+
+      {evento.qtd_notebook_atendimento > 0 && (
+        <p className="mt-2 inline-block rounded bg-cyan-500/15 border border-cyan-500/40 px-2 py-0.5 text-xs text-cyan-200">
+          💻 {evento.qtd_notebook_atendimento} notebook{evento.qtd_notebook_atendimento > 1 ? "s" : ""} atendimento
+        </p>
+      )}
 
       {evento.local_entrega && (
         <p className="text-xs text-amber-300 mt-2 truncate">📍 {evento.local_entrega}</p>

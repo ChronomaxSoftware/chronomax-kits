@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbRun, dbGet, dbAll, dbBatch, initDB } from "@/lib/db";
 import { statementsApagarEventos } from "@/lib/eventos-remocao";
+import { qtdNotebookAtendimento } from "@/lib/notebook-atendimento";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
@@ -22,7 +23,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     id
   );
 
-  return NextResponse.json({ ...evento, tecnicos, produtos });
+  const itensGestao = await dbAll<{ nome: string; quantidade: number }>(
+    "SELECT nome, quantidade FROM evento_itens_gestao WHERE evento_id = ?",
+    id
+  );
+
+  return NextResponse.json({
+    ...evento,
+    tecnicos,
+    produtos,
+    qtd_notebook_atendimento: qtdNotebookAtendimento(itensGestao),
+  });
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

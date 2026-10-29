@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dbAll, initDB } from "@/lib/db";
 import { parseDataBR } from "@/lib/semana";
+import { qtdNotebookAtendimento } from "@/lib/notebook-atendimento";
 
 type EventoRow = {
   id: number;
@@ -52,6 +53,11 @@ export async function GET() {
     `SELECT ep.evento_id, p.id, p.nome, ep.quantidade FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id`
   );
 
+  // Itens contratados no Gestão (vêm no sync) — por ora só o notebook para atendimento
+  const itensGestao = await dbAll<{ evento_id: number; nome: string; quantidade: number }>(
+    `SELECT evento_id, nome, quantidade FROM evento_itens_gestao WHERE nome LIKE '%notebook%'`
+  );
+
   const out = eventos.map((e) => ({
     ...e,
     tecnicos: tecnicosPorEvento
@@ -60,6 +66,7 @@ export async function GET() {
     produtos: produtosPorEvento
       .filter((p) => p.evento_id === e.id)
       .map(({ id, nome, quantidade }) => ({ id, nome, quantidade })),
+    qtd_notebook_atendimento: qtdNotebookAtendimento(itensGestao.filter((i) => i.evento_id === e.id)),
   }));
 
   // Ordena por data crescente; eventos com data inválida/nula vão para o fim.
