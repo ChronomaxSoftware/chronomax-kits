@@ -27,6 +27,8 @@ type EventoPortal = {
   produtos: Produto[];
   equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null; status: string }[];
   finalizado: boolean;
+  bloqueado: boolean;
+  libera_em: string | null;
   logins: string | null;
 };
 
@@ -55,7 +57,8 @@ export default function PortalPage() {
 
   if (carregando) return <p className="text-slate-400 py-10 text-center">Carregando...</p>;
 
-  const proximas = eventos.filter((e) => !e.finalizado);
+  const proximas = eventos.filter((e) => !e.finalizado && !e.bloqueado);
+  const emBreve = eventos.filter((e) => e.bloqueado);
   const finalizadas = eventos.filter((e) => e.finalizado);
 
   return (
@@ -63,7 +66,7 @@ export default function PortalPage() {
       <h1 className="text-xl font-bold">Minhas entregas</h1>
       {proximas.length === 0 ? (
         <div className="text-center py-16 text-slate-400 bg-slate-800/50 rounded-xl">
-          <p>Nenhuma prova em aberto para você.</p>
+          <p>Nenhuma prova sua nesta semana.</p>
         </div>
       ) : (
         proximas.map((ev) => (
@@ -74,6 +77,17 @@ export default function PortalPage() {
             onSalvo={carregar}
           />
         ))
+      )}
+      {emBreve.length > 0 && (
+        <section className="space-y-3 pt-2">
+          <h2 className="text-sm font-semibold text-slate-300">Próximas provas ({emBreve.length})</h2>
+          <p className="text-xs text-slate-500 -mt-2">
+            Só para consultar. A confirmação do material libera na semana de cada prova.
+          </p>
+          {emBreve.map((ev) => (
+            <CardEmBreve key={ev.id} evento={ev} />
+          ))}
+        </section>
       )}
       {finalizadas.length > 0 && (
         <details className="group">
@@ -198,22 +212,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
 
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
 
-      {evento.equipamentos.length > 0 && (
-        <div className="mt-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Aparelhos (patrimônio)</p>
-          <ul className="flex flex-wrap gap-1.5">
-            {evento.equipamentos.map((e) => (
-              <li
-                key={e.patrimonio}
-                className="rounded-full border border-slate-600 bg-slate-900 px-2.5 py-1 text-xs text-slate-200"
-              >
-                {e.tipo} · <span className="font-mono font-semibold text-white">{e.patrimonio}</span>
-                {e.numero_chip ? <span className="text-slate-400"> · {e.numero_chip}</span> : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <Aparelhos lista={evento.equipamentos} />
 
       {total === 0 ? (
         <p className="text-sm text-slate-400 mt-3">Nenhum material cadastrado para este evento ainda.</p>
@@ -366,6 +365,66 @@ function CardFinalizado({ evento }: { evento: EventoPortal }) {
       )}
       {evento.obs_recebimento && (
         <p className="mt-3 whitespace-pre-wrap text-xs text-slate-400">📝 {evento.obs_recebimento}</p>
+      )}
+    </div>
+  );
+}
+
+/** Patrimônios separados para a prova. */
+function Aparelhos({ lista }: { lista: EventoPortal["equipamentos"] }) {
+  if (lista.length === 0) return null;
+  return (
+    <div className="mt-4">
+      <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Aparelhos (patrimônio)</p>
+      <ul className="flex flex-wrap gap-1.5">
+        {lista.map((e) => (
+          <li key={e.patrimonio} className="rounded-full border border-slate-600 bg-slate-900 px-2.5 py-1 text-xs text-slate-200">
+            {e.tipo} · <span className="font-mono font-semibold text-white">{e.patrimonio}</span>
+            {e.numero_chip ? <span className="text-slate-400"> · {e.numero_chip}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Prova das próximas semanas: só consulta (logins, material e aparelhos já alocados). */
+function CardEmBreve({ evento }: { evento: EventoPortal }) {
+  return (
+    <div className="bg-slate-800/70 border border-slate-700 rounded-xl p-4">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <span className="text-xs text-slate-500 font-mono">#{evento.numero}</span>
+        <span className="bg-slate-700 text-slate-200 text-xs font-semibold px-2 py-0.5 rounded whitespace-nowrap">
+          🔒 Libera {evento.libera_em ? `em ${evento.libera_em}` : "na semana da prova"}
+        </span>
+      </div>
+      <h2 className="font-bold text-white leading-tight">{evento.nome}</h2>
+      <p className="text-xs text-slate-400 mt-1">
+        📅 {evento.data}
+        {evento.cidade && <> · 📍 {evento.cidade}{evento.uf ? "/" + evento.uf : ""}</>}
+      </p>
+      {(evento.local_entrega || evento.data_entrega) && (
+        <p className="text-xs text-amber-300 mt-1">
+          🚚 {evento.local_entrega || "Entrega"} {evento.data_entrega ? `· ${evento.data_entrega}` : ""} {evento.hora_entrega || ""}
+        </p>
+      )}
+
+      {evento.logins && <LoginsEntrega texto={evento.logins} />}
+
+      <Aparelhos lista={evento.equipamentos} />
+
+      <p className="text-xs text-slate-500 uppercase tracking-wide mt-4 mb-2">Material alocado</p>
+      {evento.produtos.length === 0 ? (
+        <p className="text-sm text-slate-400">Nenhum material alocado ainda.</p>
+      ) : (
+        <ul className="space-y-1 text-sm">
+          {evento.produtos.map((p) => (
+            <li key={p.id} className="flex justify-between gap-2 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2">
+              <span className="text-white">{p.nome}</span>
+              <span className="text-slate-300 font-semibold">{p.quantidade}</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

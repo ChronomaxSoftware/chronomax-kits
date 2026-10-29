@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { dbAll, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { parseDataBR } from "@/lib/semana";
+import { formatBR, parseDataBR } from "@/lib/semana";
+import { liberaEm, situacaoProva } from "@/lib/portal-situacao";
 
 /** Histórico: provas de até 30 dias atrás aparecem como "Finalizado" (só leitura). */
 const DIAS_PASSADOS = 30;
@@ -45,10 +46,18 @@ export async function GET() {
     .filter((x) => x.d === null || x.d >= corte)
     .sort((a, b) => (a.d?.getTime() ?? Infinity) - (b.d?.getTime() ?? Infinity))
     .map(({ e, d }) => {
-      const finalizado = !!d && d < hoje;
+      const situacao = situacaoProva(d);
+      const finalizado = situacao === "finalizada";
       // Logins da entrega (card "🔑 Logins" da prova) só enquanto a prova não passou
       const { usuarios_evento, ...resto } = e;
-      return { ...resto, finalizado, logins: finalizado ? null : usuarios_evento?.trim() || null };
+      return {
+        ...resto,
+        finalizado,
+        // semanas seguintes: só consulta, libera para confirmar na semana da prova
+        bloqueado: situacao === "em_breve",
+        libera_em: situacao === "em_breve" && d ? formatBR(liberaEm(d)) : null,
+        logins: finalizado ? null : usuarios_evento?.trim() || null,
+      };
     });
 
   const result = [];
