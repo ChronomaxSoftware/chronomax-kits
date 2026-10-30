@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import ScannerControl from "@/components/staff/ScannerControl";
+import CelularesDaProva from "@/components/staff/CelularesDaProva";
 import DashboardStaff from "@/components/staff/DashboardStaff";
 import HistoricoStaff from "@/components/staff/HistoricoStaff";
 
-type Aba = "scanner" | "uso" | "hist";
+type Aba = "prova" | "scanner" | "uso" | "hist";
 
 export default function PortalStaffPage() {
-  const [aba, setAba] = useState<Aba>("scanner");
+  const [aba, setAba] = useState<Aba>("prova");
 
   const tab = (id: Aba, label: string) => (
     <button
@@ -25,11 +26,13 @@ export default function PortalStaffPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Controle de Staff</h1>
       <div className="flex gap-1 border-b border-slate-700 overflow-x-auto">
+        {tab("prova", "Celulares da prova")}
         {tab("scanner", "Bipar QR")}
         {tab("uso", "Em uso")}
         {tab("hist", "Histórico")}
       </div>
 
+      {aba === "prova" && <CelularesDaProva />}
       {aba === "scanner" && (
         <div className="max-w-xl">
           <p className="text-slate-300 text-sm mb-4">

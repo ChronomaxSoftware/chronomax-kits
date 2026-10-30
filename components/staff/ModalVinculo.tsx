@@ -22,6 +22,8 @@ export default function ModalVinculo({
   onConfirm,
   onClose,
   salvando,
+  eventoFixo,
+  sugestoes = [],
 }: {
   device: DeviceScan;
   atual: Atual;
@@ -29,12 +31,16 @@ export default function ModalVinculo({
   onConfirm: (action: AcaoVinculo, data: DadosVinculo) => void;
   onClose: () => void;
   salvando?: boolean;
+  /** Vínculo feito a partir da prova: o evento já vem definido (sem o seletor) */
+  eventoFixo?: EventoOpt;
+  /** Nomes sugeridos (equipe da prova no Gestão) */
+  sugestoes?: string[];
 }) {
   const emUso = !!atual;
   const [colaborador, setColaborador] = useState("");
   const [funcao, setFuncao] = useState<string>(FUNCOES_STAFF[0]);
   const [observacao, setObservacao] = useState("");
-  const [eventId, setEventId] = useState<string>("");
+  const [eventId, setEventId] = useState<string>(eventoFixo ? String(eventoFixo.id) : "");
 
   function enviar(action: "vincular" | "trocar") {
     if (!colaborador.trim()) return;
@@ -85,8 +91,16 @@ export default function ModalVinculo({
             value={colaborador}
             onChange={(e) => setColaborador(e.target.value)}
             placeholder="Nome completo do colaborador"
+            list={sugestoes.length ? "sugestoes-colaborador" : undefined}
             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
           />
+          {sugestoes.length > 0 && (
+            <datalist id="sugestoes-colaborador">
+              {sugestoes.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          )}
           <select
             value={funcao}
             onChange={(e) => setFuncao(e.target.value)}
@@ -98,6 +112,12 @@ export default function ModalVinculo({
               </option>
             ))}
           </select>
+          {eventoFixo ? (
+            <p className="text-xs text-slate-400">
+              Prova: {eventoFixo.numero ? `#${eventoFixo.numero} - ` : ""}
+              {eventoFixo.nome}
+            </p>
+          ) : (
           <select
             value={eventId}
             onChange={(e) => setEventId(e.target.value)}
@@ -111,6 +131,7 @@ export default function ModalVinculo({
               </option>
             ))}
           </select>
+          )}
           <input
             value={observacao}
             onChange={(e) => setObservacao(e.target.value)}
