@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import PainelConferencia from "@/components/staff/PainelConferencia";
 import { TipoEquipamento, tipoDeProduto } from "@/lib/equipamentos";
 import SeletorEquipamentosProduto, { EquipamentoResumo } from "@/components/equipamentos/SeletorEquipamentosProduto";
 
@@ -755,6 +756,10 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 produtos no total
               </li>
             </ul>
+          </Card>
+
+          <Card titulo="📋 Conferência diária dos celulares">
+            <PainelConferencia eventoId={evento.id} />
           </Card>
 
           <Card titulo="📦 Recebimento do material (técnico)">

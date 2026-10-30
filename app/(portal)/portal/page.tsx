@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import InstalarApp from "../InstalarApp";
 import AvisoAtualizarApp from "../AvisoAtualizarApp";
+import LembreteConferencia from "../LembreteConferencia";
 
 type Produto = {
   id: number;
@@ -69,6 +70,7 @@ export default function PortalPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Minhas entregas</h1>
+      <LembreteConferencia />
       <AvisoAtualizarApp>
         <InstalarApp />
       </AvisoAtualizarApp>

@@ -353,6 +353,18 @@ CREATE TABLE IF NOT EXISTS staff_celular_tecnico (
 );
 CREATE INDEX IF NOT EXISTS idx_staff_celular_tecnico_tec ON staff_celular_tecnico(evento_id, tecnico_id);
 
+-- Conferência diária (ativada por prova): OK/problema do técnico em cada celular, por dia (YYYY-MM-DD em Brasília)
+CREATE TABLE IF NOT EXISTS staff_conferencia (
+  evento_id INTEGER NOT NULL,
+  data TEXT NOT NULL,
+  equipamento_id INTEGER NOT NULL,
+  tecnico_id INTEGER,
+  status TEXT NOT NULL,
+  obs TEXT,
+  em TEXT NOT NULL,
+  PRIMARY KEY (evento_id, data, equipamento_id)
+);
+
 CREATE TABLE IF NOT EXISTS staff_audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   usuario TEXT,
@@ -429,6 +441,8 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     ["evento_tecnicos", "obs_devolucao", "ALTER TABLE evento_tecnicos ADD COLUMN obs_devolucao TEXT"],
     // Alerta gerado pelo sistema (ex.: retorno pendente) tem chave para não repetir
     ["alertas", "chave", "ALTER TABLE alertas ADD COLUMN chave TEXT"],
+    // Conferência diária dos celulares ligada pelo escritório nesta prova
+    ["eventos", "conferencia_diaria", "ALTER TABLE eventos ADD COLUMN conferencia_diaria INTEGER DEFAULT 0"],
     // Usuários do escritório podem ser desativados (perdem o acesso sem apagar o histórico)
     ["users", "ativo", "ALTER TABLE users ADD COLUMN ativo INTEGER DEFAULT 1"],
     // Tutorial do portal mostrado no primeiro acesso do técnico
