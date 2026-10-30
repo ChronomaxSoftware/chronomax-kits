@@ -5,6 +5,7 @@
 
 import { dbAll, dbGet, dbRun } from "./db";
 import { parseDataBR } from "./semana";
+import { acessoriosPendentes, textoAlertaAcessorios, type LinhaAcessorio } from "./retorno-acessorios";
 
 export type TipoAlerta = "recebimento" | "devolucao";
 
@@ -93,6 +94,17 @@ export async function gerarAlertasRetorno(): Promise<void> {
      WHERE e.status IN ('alocado', 'em_campo')`
   );
   const pend = pendenciasRetorno(itens);
+
+  // Acessórios (por quantidade) ainda não conferidos depois da prova
+  const linhas = await dbAll<LinhaAcessorio>(
+    `SELECT v.id AS evento_id, v.numero AS evento_numero, v.nome AS evento_nome, v.data AS evento_data,
+            v.uf AS evento_uf, p.id AS produto_id, p.nome AS produto_nome, ep.quantidade, ep.devolucao_em
+     FROM evento_produtos ep JOIN eventos v ON v.id = ep.evento_id JOIN produtos p ON p.id = ep.produto_id
+     WHERE ep.devolucao_em IS NULL AND ep.quantidade > 0`
+  );
+  for (const p of acessoriosPendentes(linhas).filter((x) => x.atrasada)) {
+    pend.push({ chave: `retorno_acess:${p.evento_id}`, evento_id: p.evento_id, mensagem: textoAlertaAcessorios(p) });
+  }
   if (pend.length === 0) return;
   const ja = new Set(
     (await dbAll<{ chave: string }>("SELECT chave FROM alertas WHERE chave IS NOT NULL")).map((r) => r.chave)

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { parseDataBR } from "@/lib/semana";
 import ConferenciaRetorno, { ItemEmCampo } from "@/components/equipamentos/ConferenciaRetorno";
+import ConferenciaAcessorios, { type ProvaAcessoriosTela } from "@/components/equipamentos/ConferenciaAcessorios";
 import { Aviso, Indicador } from "@/components/equipamentos/ui";
 
 type Pendente = ItemEmCampo & { evento_id: number | null; evento_data: string | null; evento_numero: string | null };
@@ -12,14 +13,16 @@ type Grupo = { chave: string; eventoId: number | null; titulo: string; data: str
 
 export default function PendentesPage() {
   const [lista, setLista] = useState<Pendente[] | null>(null);
+  const [acessorios, setAcessorios] = useState<ProvaAcessoriosTela[]>([]);
   const [erro, setErro] = useState("");
   const [ok, setOk] = useState("");
 
   const carregar = useCallback(async () => {
     try {
-      const r = await fetch("/api/equipamentos/pendentes");
+      const [r, ra] = await Promise.all([fetch("/api/equipamentos/pendentes"), fetch("/api/acessorios/retorno")]);
       if (!r.ok) throw new Error();
       setLista(await r.json());
+      if (ra.ok) setAcessorios(await ra.json());
     } catch {
       setErro("Não foi possível carregar os pendentes. Recarregue a página.");
     }
@@ -107,6 +110,28 @@ export default function PendentesPage() {
               }}
             />
           </section>
+        ))
+      )}
+
+      <div className="pt-2">
+        <h2 className="text-lg font-semibold">Acessórios a conferir</h2>
+        <p className="text-slate-400 text-sm">
+          Extensão, régua, mouse… (por quantidade, do card Produtos). Digite quantos voltaram de cada prova; o que faltou
+          pode ser descontado do estoque da base.
+        </p>
+      </div>
+      {acessorios.length === 0 ? (
+        <div className="bg-slate-800 rounded-xl p-6 text-sm text-slate-400">✓ Nenhum acessório a conferir.</div>
+      ) : (
+        acessorios.map((p) => (
+          <ConferenciaAcessorios
+            key={p.evento_id}
+            prova={p}
+            onConcluido={async (msg) => {
+              setOk(msg);
+              await carregar();
+            }}
+          />
         ))
       )}
     </div>

@@ -102,7 +102,11 @@ export default function SinoAlertas() {
                     </p>
                     <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
                       <span>{new Date(a.criado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
-                      {a.evento_id && (
+                      {a.tipo === "retorno_pendente" ? (
+                        <Link href="/equipamentos/pendentes" onClick={fechar} className="text-blue-400 hover:text-blue-300">
+                          Conferir retorno →
+                        </Link>
+                      ) : a.evento_id && (
                         <Link href={`/eventos/${a.evento_id}`} onClick={fechar} className="text-blue-400 hover:text-blue-300">
                           Abrir prova →
                         </Link>
