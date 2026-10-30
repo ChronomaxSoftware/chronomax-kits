@@ -30,12 +30,20 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const celulares = await dbAll(
     `SELECT e.id AS equipamento_id, e.tipo, e.patrimonio, e.numero_chip, e.status,
             d.id AS device_id, d.status AS device_status,
-            a.id AS vinculo_id, a.colaborador, a.funcao, a.inicio
+            a.id AS vinculo_id, a.colaborador, a.funcao, a.inicio,
+            ct.tecnico_id AS com_tecnico_id, t.nome AS com_tecnico, ct.pego_em
      FROM equipamentos e
      LEFT JOIN staff_devices d ON UPPER(TRIM(d.patrimonio)) = UPPER(TRIM(e.patrimonio))
      LEFT JOIN staff_assignments a ON a.device_id = d.id AND a.fim IS NULL
+     LEFT JOIN staff_celular_tecnico ct ON ct.evento_id = e.evento_id AND ct.equipamento_id = e.id
+     LEFT JOIN tecnicos t ON t.id = ct.tecnico_id
      WHERE e.evento_id = ? AND e.tipo = 'Celular'
      ORDER BY e.patrimonio`,
+    eventoId
+  );
+  const tecnicos = await dbAll(
+    `SELECT t.id, t.nome FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id
+     WHERE et.evento_id = ? AND t.ativo = 1 ORDER BY t.nome`,
     eventoId
   );
   // Nomes da equipe convocada no Gestão, para sugerir ao vincular
@@ -43,7 +51,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     await dbAll<{ nome: string }>("SELECT DISTINCT nome FROM evento_equipe_gestao WHERE evento_id = ? ORDER BY nome", eventoId)
   ).map((r) => r.nome);
 
-  return NextResponse.json({ prova, celulares, equipe });
+  return NextResponse.json({
+    prova,
+    celulares,
+    equipe,
+    tecnicos,
+    eu: s.role === "tecnico" ? { role: "tecnico", tecnico_id: s.tecnicoId } : { role: "admin" },
+  });
 }
 
 // POST /api/staff/provas/[id] { equipamento_id } — garante o aparelho no cadastro do Staff (pelo patrimônio)
