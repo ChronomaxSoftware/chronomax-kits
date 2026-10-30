@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
     params.push(status);
   }
   const rows = await dbAll(
-    `SELECT e.*, b.nome AS base_nome, b.uf AS base_uf, v.numero AS evento_numero, v.nome AS evento_nome, v.data AS evento_data,
+    `SELECT e.*, b.nome AS base_nome, b.uf AS base_uf, v.numero AS evento_numero, v.nome AS evento_nome, v.data AS evento_data, v.uf AS evento_uf,
             COALESCE('#' || v.numero || ' · ' || v.nome, e.evento_ref) AS prova_ref
      FROM equipamentos e
      LEFT JOIN bases b ON b.id = e.base_id

@@ -23,20 +23,34 @@ const semana = new Date(2026, 9, 26);
 describe("resumoInventario", () => {
   it("todas as bases", () => {
     expect(resumoInventario(equip, eventos, bases, "todas", semana)).toEqual([
-      { tipo: "Celular", total: 4, alocado: 2, manutencao: 1, disponivel: 1, pedido: 4 },
-      { tipo: "Roteador", total: 1, alocado: 0, manutencao: 0, disponivel: 1, pedido: 1 },
+      { tipo: "Celular", total: 4, alocado: 2, fora: 0, manutencao: 1, disponivel: 1, pedido: 4 },
+      { tipo: "Roteador", total: 1, alocado: 0, fora: 0, manutencao: 0, disponivel: 1, pedido: 1 },
     ]);
   });
 
   it("filtra por base (patrimônios pela base, provas pela UF)", () => {
     expect(resumoInventario(equip, eventos, bases, 1, semana)).toEqual([
-      { tipo: "Celular", total: 3, alocado: 1, manutencao: 1, disponivel: 1, pedido: 3 },
+      { tipo: "Celular", total: 3, alocado: 1, fora: 0, manutencao: 1, disponivel: 1, pedido: 3 },
     ]);
   });
 
   it("sem base: patrimônio sem base e provas de UF sem base", () => {
     expect(resumoInventario(equip, eventos, bases, "sem_base", semana)).toEqual([
-      { tipo: "Roteador", total: 1, alocado: 0, manutencao: 0, disponivel: 1, pedido: 1 },
+      { tipo: "Roteador", total: 1, alocado: 0, fora: 0, manutencao: 0, disponivel: 1, pedido: 1 },
+    ]);
+  });
+});
+
+describe("fora da base", () => {
+  it("alocado/em campo em prova de outro estado conta como fora, não como alocado", () => {
+    const eq = [
+      { tipo: "Celular", status: "em_campo", base_id: 1, evento_uf: "RJ" }, // RS → RJ: fora
+      { tipo: "Celular", status: "alocado", base_id: 1, evento_uf: "rs" }, // mesma UF
+      { tipo: "Celular", status: "alocado", base_id: 1, evento_uf: null }, // prova sem UF
+      { tipo: "Celular", status: "disponivel", base_id: 1, evento_uf: "RJ" },
+    ];
+    expect(resumoInventario(eq, [], bases, 1, semana)).toEqual([
+      { tipo: "Celular", total: 4, alocado: 2, fora: 1, manutencao: 0, disponivel: 1, pedido: 0 },
     ]);
   });
 });

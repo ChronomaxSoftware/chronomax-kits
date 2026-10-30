@@ -411,6 +411,8 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     // ...e quando confirmou que devolveu todo o material (com observação da devolução)
     ["evento_tecnicos", "devolvido_em", "ALTER TABLE evento_tecnicos ADD COLUMN devolvido_em TEXT"],
     ["evento_tecnicos", "obs_devolucao", "ALTER TABLE evento_tecnicos ADD COLUMN obs_devolucao TEXT"],
+    // Alerta gerado pelo sistema (ex.: retorno pendente) tem chave para não repetir
+    ["alertas", "chave", "ALTER TABLE alertas ADD COLUMN chave TEXT"],
     // Usuários do escritório podem ser desativados (perdem o acesso sem apagar o histórico)
     ["users", "ativo", "ALTER TABLE users ADD COLUMN ativo INTEGER DEFAULT 1"],
     // Tutorial do portal mostrado no primeiro acesso do técnico

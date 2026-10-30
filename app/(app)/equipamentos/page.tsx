@@ -36,6 +36,7 @@ type Equipamento = {
   evento_numero: string | null;
   evento_nome: string | null;
   evento_data: string | null;
+  evento_uf: string | null;
   prova_ref: string | null;
   saida_em: string | null;
 };

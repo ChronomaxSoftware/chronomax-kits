@@ -2,12 +2,13 @@
  * Resumo do inventário por tipo para o gráfico: quantos tenho (patrimônios), quantos
  * estão alocados (separados + em campo), em manutenção e disponíveis — filtrado por base —
  * e o pedido das provas da semana (card "Produtos"), casando a prova com a base pela UF.
+ * "Fora" = alocado/em campo numa prova de outro estado que não o da base do patrimônio.
  */
 
 import { TIPOS_EQUIPAMENTO, tipoDeProduto, type TipoEquipamento } from "./equipamentos";
 import { chaveSemana, parseDataBR } from "./semana";
 
-export type EquipResumo = { tipo: string; status: string; base_id: number | null };
+export type EquipResumo = { tipo: string; status: string; base_id: number | null; evento_uf?: string | null };
 export type EventoPedido = { data: string; uf: string | null; produtos: { nome: string; quantidade: number }[] };
 export type BaseResumo = { id: number; uf: string };
 
@@ -18,6 +19,7 @@ export type LinhaInventario = {
   tipo: TipoEquipamento;
   total: number;
   alocado: number;
+  fora: number;
   manutencao: number;
   disponivel: number;
   pedido: number;
@@ -31,6 +33,7 @@ export function resumoInventario(
   inicioSemana: Date
 ): LinhaInventario[] {
   const ufsComBase = new Set(bases.map((b) => b.uf.toUpperCase()));
+  const ehFora = foraDaBase(bases);
   const base = typeof filtro === "number" ? bases.find((b) => b.id === filtro) : undefined;
 
   const equipDaBase = (e: EquipResumo) =>
@@ -56,15 +59,28 @@ export function resumoInventario(
   return TIPOS_EQUIPAMENTO.map((tipo) => {
     const doTipo = equipamentos.filter((e) => e.tipo === tipo && equipDaBase(e));
     const conta = (...s: string[]) => doTipo.filter((e) => s.includes(e.status)).length;
+    const fora = doTipo.filter(ehFora).length;
     return {
       tipo,
       total: doTipo.length,
-      alocado: conta("alocado", "em_campo"),
+      alocado: conta("alocado", "em_campo") - fora,
+      fora,
       manutencao: conta("manutencao"),
       disponivel: conta("disponivel"),
       pedido: pedido.get(tipo) || 0,
     };
   }).filter((l) => l.total > 0 || l.pedido > 0);
+}
+
+/** Patrimônio alocado/em campo numa prova de outro estado que não o da sua base. */
+export function foraDaBase(bases: BaseResumo[]): (e: EquipResumo) => boolean {
+  const ufDaBase = new Map(bases.map((b) => [b.id, b.uf.trim().toUpperCase()]));
+  return (e) => {
+    if (e.status !== "alocado" && e.status !== "em_campo") return false;
+    const ufBase = e.base_id === null ? undefined : ufDaBase.get(e.base_id);
+    const ufProva = (e.evento_uf || "").trim().toUpperCase();
+    return !!ufBase && !!ufProva && ufBase !== ufProva;
+  };
 }
 
 /** Estoque por base dos produtos que são equipamento: conta patrimônios fora de manutenção. */
