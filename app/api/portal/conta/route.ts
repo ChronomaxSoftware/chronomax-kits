@@ -3,7 +3,8 @@ import bcrypt from "bcryptjs";
 import { dbGet, dbRun, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { validarSenhaTecnico } from "@/lib/login-tecnico";
-import { precisaAvisoApp } from "@/lib/aviso-app";
+import { CHAVE_REENVIO, precisaAvisoApp } from "@/lib/aviso-app";
+import { get } from "@/lib/config";
 
 async function tecnicoLogado() {
   const s = await getSession();
@@ -31,7 +32,7 @@ export async function GET() {
     nome: t?.nome,
     login: t?.login,
     tutorialVisto: !!t?.tutorial_visto_em,
-    avisoApp: !!t && precisaAvisoApp(t),
+    avisoApp: !!t && precisaAvisoApp(t, await get(CHAVE_REENVIO)),
   });
 }
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import AlterarSenha from "./AlterarSenha";
 import UsuariosAcessos from "./UsuariosAcessos";
+import ReenviarAvisoApp from "./ReenviarAvisoApp";
 
 export default function ConfigPage() {
   const [usuario, setUsuario] = useState("");
@@ -112,6 +113,7 @@ export default function ConfigPage() {
 
       <AlterarSenha />
       <UsuariosAcessos />
+      <ReenviarAvisoApp />
     </div>
   );
 }
