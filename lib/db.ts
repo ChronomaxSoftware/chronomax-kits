@@ -417,6 +417,8 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     ["users", "ativo", "ALTER TABLE users ADD COLUMN ativo INTEGER DEFAULT 1"],
     // Tutorial do portal mostrado no primeiro acesso do técnico
     ["tecnicos", "tutorial_visto_em", "ALTER TABLE tecnicos ADD COLUMN tutorial_visto_em TEXT"],
+    // Aviso "o app mudou" (nome/ícone novos) já confirmado pelo técnico
+    ["tecnicos", "aviso_app_visto_em", "ALTER TABLE tecnicos ADD COLUMN aviso_app_visto_em TEXT"],
     // Saída/retorno de equipamentos (status em_campo): quando saiu, quem registrou e a
     // prova "congelada" em texto — continua legível se a prova sumir do Gestão.
     ["equipamentos", "saida_em", "ALTER TABLE equipamentos ADD COLUMN saida_em TEXT"],

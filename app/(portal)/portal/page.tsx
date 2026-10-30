@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import InstalarApp from "../InstalarApp";
+import AvisoAtualizarApp from "../AvisoAtualizarApp";
 
 type Produto = {
   id: number;
@@ -68,7 +69,9 @@ export default function PortalPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-bold">Minhas entregas</h1>
-      <InstalarApp />
+      <AvisoAtualizarApp>
+        <InstalarApp />
+      </AvisoAtualizarApp>
       {proximas.length === 0 ? (
         <div className="text-center py-16 text-slate-400 bg-slate-800/50 rounded-xl">
           <p>Nenhuma prova sua nesta semana.</p>
