@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import InstalarApp from "./InstalarApp";
 
 const PASSOS = [
   {
@@ -23,6 +24,12 @@ const PASSOS = [
     titulo: "Observações",
     texto: "Se algo veio errado ou faltando, escreva no campo Observações e envie. A equipe Chronomax vê na hora.",
   },
+  {
+    icone: "📲",
+    titulo: "Instale no celular",
+    texto: "Deixe o ícone Chronomax na tela inicial e abra direto nas suas provas, sem precisar do link.",
+    instalar: true,
+  },
 ];
 
 /** Tutorial curto do portal (primeiro acesso ou pelo botão "Como usar"). */
@@ -42,6 +49,11 @@ export default function TutorialPortal({ onFechar }: { onFechar: () => void }) {
         </div>
         <h2 className="text-lg font-bold text-white mb-2">{passo.titulo}</h2>
         <p className="text-sm text-slate-300 mb-6">{passo.texto}</p>
+        {"instalar" in passo && (
+          <div className="text-left mb-5 -mt-2">
+            <InstalarApp forcar />
+          </div>
+        )}
         <div className="flex justify-center gap-1.5 mb-5" aria-hidden="true">
           {PASSOS.map((_, k) => (
             <span key={k} className={`h-1.5 w-6 rounded-full ${k === i ? "bg-blue-500" : "bg-slate-600"}`} />
