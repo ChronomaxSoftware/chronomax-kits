@@ -8,14 +8,10 @@ type EventoInstalar = Event & { prompt: () => Promise<void>; userChoice: Promise
 
 const OCULTO = "chronomax_instalar_oculto";
 
-/**
- * Card "Instale o app no celular": botão de 1 toque no Android (quando o Chrome deixa)
- * ou o passo a passo (iPhone/Safari e demais). Some quando já está aberto como app.
- */
-export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
+/** Plataforma, se já está aberto como app e a instalação de 1 toque (Chrome/Android). */
+export function useInstalacao() {
   const [plat, setPlat] = useState<Plataforma | null>(null);
   const [instalado, setInstalado] = useState(false);
-  const [oculto, setOculto] = useState(false);
   const [evento, setEvento] = useState<EventoInstalar | null>(null);
 
   useEffect(() => {
@@ -24,11 +20,6 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
       window.matchMedia("(display-mode: standalone)").matches ||
       (navigator as Navigator & { standalone?: boolean }).standalone === true;
     setInstalado(standalone);
-    try {
-      setOculto(localStorage.getItem(OCULTO) === "1");
-    } catch {
-      // sem armazenamento: mostra normalmente
-    }
     const antes = (e: Event) => {
       e.preventDefault();
       setEvento(e as EventoInstalar);
@@ -42,6 +33,35 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
     };
   }, []);
 
+  /** Abre a janela de instalação do Chrome; true se a pessoa aceitou. */
+  async function instalar(): Promise<boolean> {
+    if (!evento) return false;
+    await evento.prompt();
+    const { outcome } = await evento.userChoice;
+    setEvento(null);
+    if (outcome === "accepted") setInstalado(true);
+    return outcome === "accepted";
+  }
+
+  return { plat, instalado, podeInstalar: !!evento, instalar };
+}
+
+/**
+ * Card "Instale o app no celular": botão de 1 toque no Android (quando o Chrome deixa)
+ * ou o passo a passo (iPhone/Safari e demais). Some quando já está aberto como app.
+ */
+export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
+  const { plat, instalado, podeInstalar, instalar } = useInstalacao();
+  const [oculto, setOculto] = useState(false);
+
+  useEffect(() => {
+    try {
+      setOculto(localStorage.getItem(OCULTO) === "1");
+    } catch {
+      // sem armazenamento: mostra normalmente
+    }
+  }, []);
+
   if (!plat || (instalado && !forcar) || (oculto && !forcar)) return null;
 
   // Já está dentro do app instalado (ex.: o antigo): para reinstalar precisa do navegador
@@ -53,14 +73,6 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
         {plat.startsWith("ios") ? "Safari" : "Chrome"}, entre com seu telefone e senha e siga o passo a passo que aparece.
       </div>
     );
-  }
-
-  async function instalar() {
-    if (!evento) return;
-    await evento.prompt();
-    const { outcome } = await evento.userChoice;
-    if (outcome === "accepted") setInstalado(true);
-    setEvento(null);
   }
 
   function esconder() {
@@ -79,7 +91,7 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
         Fica um ícone Kits Gestão na tela inicial: abre direto nas suas provas, sem precisar do link.
       </p>
 
-      {evento ? (
+      {podeInstalar ? (
         <button
           onClick={instalar}
           className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg"
