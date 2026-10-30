@@ -343,6 +343,16 @@ CREATE INDEX IF NOT EXISTS idx_staff_assignments_device ON staff_assignments(dev
 CREATE INDEX IF NOT EXISTS idx_staff_assignments_abertos ON staff_assignments(device_id, fim);
 CREATE INDEX IF NOT EXISTS idx_staff_assignments_event ON staff_assignments(event_id);
 
+-- Prova com mais de um técnico: qual técnico pegou cada celular (um técnico por celular na prova)
+CREATE TABLE IF NOT EXISTS staff_celular_tecnico (
+  evento_id INTEGER NOT NULL,
+  equipamento_id INTEGER NOT NULL,
+  tecnico_id INTEGER NOT NULL,
+  pego_em TEXT NOT NULL,
+  PRIMARY KEY (evento_id, equipamento_id)
+);
+CREATE INDEX IF NOT EXISTS idx_staff_celular_tecnico_tec ON staff_celular_tecnico(evento_id, tecnico_id);
+
 CREATE TABLE IF NOT EXISTS staff_audit_logs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   usuario TEXT,
