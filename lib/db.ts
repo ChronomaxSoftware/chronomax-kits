@@ -401,6 +401,12 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     ["evento_produtos", "recebido", "ALTER TABLE evento_produtos ADD COLUMN recebido INTEGER DEFAULT 0"],
     ["evento_produtos", "qtd_recebida", "ALTER TABLE evento_produtos ADD COLUMN qtd_recebida INTEGER"],
     ["evento_produtos", "recebido_em", "ALTER TABLE evento_produtos ADD COLUMN recebido_em TEXT"],
+    // Retorno dos acessórios (conferido no escritório): quantos voltaram, quando, quem e o que foi descontado da base
+    ["evento_produtos", "qtd_devolvida", "ALTER TABLE evento_produtos ADD COLUMN qtd_devolvida INTEGER"],
+    ["evento_produtos", "devolucao_em", "ALTER TABLE evento_produtos ADD COLUMN devolucao_em TEXT"],
+    ["evento_produtos", "devolucao_por", "ALTER TABLE evento_produtos ADD COLUMN devolucao_por TEXT"],
+    ["evento_produtos", "devolucao_obs", "ALTER TABLE evento_produtos ADD COLUMN devolucao_obs TEXT"],
+    ["evento_produtos", "descontado", "ALTER TABLE evento_produtos ADD COLUMN descontado INTEGER DEFAULT 0"],
     // Função e data/hora da atribuição do técnico de entrega de kit ao evento
     ["evento_tecnicos", "funcao", "ALTER TABLE evento_tecnicos ADD COLUMN funcao TEXT"],
     ["evento_tecnicos", "atribuido_em", "ALTER TABLE evento_tecnicos ADD COLUMN atribuido_em TEXT"],
