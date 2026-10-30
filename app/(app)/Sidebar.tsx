@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "./LogoutButton";
+import SinoAlertas from "./SinoAlertas";
 
 const LINKS = [
   { href: "/", label: "Convocações" },
@@ -84,12 +85,16 @@ export default function Sidebar({ name, username }: { name: string; username: st
           </svg>
         </button>
         <Marca compacta />
+        <div className="ml-auto">
+          <SinoAlertas />
+        </div>
       </header>
 
       {/* Barra lateral fixa — só no desktop */}
       <aside className="hidden lg:flex w-64 shrink-0 bg-slate-950 border-r border-slate-800 p-4 flex-col print:hidden">
-        <div className="mb-6">
+        <div className="mb-6 flex items-center justify-between gap-2">
           <Marca />
+          <SinoAlertas />
         </div>
         {nav}
         {rodape}

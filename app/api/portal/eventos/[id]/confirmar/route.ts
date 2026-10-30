@@ -3,6 +3,7 @@ import { dbAll, dbGet, dbRun, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { parseDataBR } from "@/lib/semana";
 import { situacaoProva } from "@/lib/portal-situacao";
+import { criarAlerta } from "@/lib/alertas";
 
 /**
  * POST /api/portal/eventos/[id]/confirmar
@@ -86,6 +87,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const total = await dbGet<{ n: number }>("SELECT COUNT(*) AS n FROM evento_produtos WHERE evento_id = ?", id);
   const completo = pend.length === 0 && (Number(total?.n) || 0) > 0;
   if (tudo === true || Array.isArray(itens)) {
+    const antes = await dbGet<{ confirmado_em: string | null }>(
+      "SELECT confirmado_em FROM evento_tecnicos WHERE evento_id = ? AND tecnico_id = ?",
+      id,
+      session.tecnicoId
+    );
+    if (completo && !antes?.confirmado_em) {
+      await criarAlerta("recebimento", id, session.tecnicoId, typeof body.observacao === "string" ? body.observacao : null);
+    }
     await dbRun(
       "UPDATE evento_tecnicos SET confirmado_em = ? WHERE evento_id = ? AND tecnico_id = ?",
       completo ? agora : null,

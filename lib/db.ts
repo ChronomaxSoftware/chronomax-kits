@@ -232,6 +232,18 @@ CREATE TABLE IF NOT EXISTS convites_tecnico (
 );
 CREATE INDEX IF NOT EXISTS idx_convites_tecnico_tecnico ON convites_tecnico(tecnico_id);
 
+-- Alertas do escritório (sino): técnico confirmou recebimento/devolução do material
+CREATE TABLE IF NOT EXISTS alertas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo TEXT NOT NULL,
+  evento_id INTEGER,
+  tecnico_id INTEGER,
+  mensagem TEXT NOT NULL,
+  criado_em TEXT NOT NULL,
+  lido_em TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_alertas_criado ON alertas(criado_em);
+
 CREATE TABLE IF NOT EXISTS equipamento_historico (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   equipamento_id INTEGER NOT NULL,
@@ -396,6 +408,9 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     ["evento_tecnicos", "obs_recebimento", "ALTER TABLE evento_tecnicos ADD COLUMN obs_recebimento TEXT"],
     ["evento_tecnicos", "obs_em", "ALTER TABLE evento_tecnicos ADD COLUMN obs_em TEXT"],
     ["evento_tecnicos", "confirmado_em", "ALTER TABLE evento_tecnicos ADD COLUMN confirmado_em TEXT"],
+    // ...e quando confirmou que devolveu todo o material (com observação da devolução)
+    ["evento_tecnicos", "devolvido_em", "ALTER TABLE evento_tecnicos ADD COLUMN devolvido_em TEXT"],
+    ["evento_tecnicos", "obs_devolucao", "ALTER TABLE evento_tecnicos ADD COLUMN obs_devolucao TEXT"],
     // Usuários do escritório podem ser desativados (perdem o acesso sem apagar o histórico)
     ["users", "ativo", "ALTER TABLE users ADD COLUMN ativo INTEGER DEFAULT 1"],
     // Tutorial do portal mostrado no primeiro acesso do técnico
