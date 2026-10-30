@@ -51,6 +51,8 @@ type Evento = {
     obs_recebimento?: string | null;
     obs_em?: string | null;
     confirmado_em?: string | null;
+    devolvido_em?: string | null;
+    obs_devolucao?: string | null;
   }[];
   produtos: { id: number; nome: string; quantidade: number; recebido?: number; qtd_recebida?: number | null; recebido_em?: string | null }[];
 };
@@ -775,10 +777,10 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 ))}
               </ul>
             )}
-            {evento.tecnicos.some((t) => t.confirmado_em || t.obs_recebimento) && (
+            {evento.tecnicos.some((t) => t.confirmado_em || t.obs_recebimento || t.devolvido_em) && (
               <div className="mt-3 pt-3 border-t border-slate-700 space-y-2">
                 {evento.tecnicos
-                  .filter((t) => t.confirmado_em || t.obs_recebimento)
+                  .filter((t) => t.confirmado_em || t.obs_recebimento || t.devolvido_em)
                   .map((t) => (
                     <div key={t.id} className="text-sm">
                       <p className="text-slate-200">
@@ -793,6 +795,16 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                       {t.obs_recebimento && (
                         <p className="mt-1 whitespace-pre-wrap rounded bg-amber-500/10 border border-amber-500/30 px-2 py-1 text-xs text-amber-200">
                           📝 {t.obs_recebimento}
+                        </p>
+                      )}
+                      {t.devolvido_em && (
+                        <p className="mt-1 text-xs text-cyan-300">
+                          ↩ devolveu tudo em {new Date(t.devolvido_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                        </p>
+                      )}
+                      {t.obs_devolucao && (
+                        <p className="mt-1 whitespace-pre-wrap rounded bg-cyan-500/10 border border-cyan-500/30 px-2 py-1 text-xs text-cyan-200">
+                          📝 Devolução: {t.obs_devolucao}
                         </p>
                       )}
                     </div>

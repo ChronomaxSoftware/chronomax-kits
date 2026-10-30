@@ -29,6 +29,9 @@ type EventoPortal = {
   finalizado: boolean;
   bloqueado: boolean;
   libera_em: string | null;
+  pode_devolver: boolean;
+  devolvido_em: string | null;
+  obs_devolucao: string | null;
   logins: string | null;
 };
 
@@ -72,7 +75,7 @@ export default function PortalPage() {
         proximas.map((ev) => (
           // a chave muda quando o servidor confirma algo → o cartão recomeça com o estado salvo
           <CardEventoPortal
-            key={`${ev.id}:${ev.confirmado_em}:${ev.obs_em}:${ev.produtos.map((p) => `${p.recebido}-${p.qtd_recebida}`).join()}`}
+            key={`${ev.id}:${ev.confirmado_em}:${ev.obs_em}:${ev.devolvido_em}:${ev.produtos.map((p) => `${p.recebido}-${p.qtd_recebida}`).join()}`}
             evento={ev}
             onSalvo={carregar}
           />
@@ -96,7 +99,7 @@ export default function PortalPage() {
           </summary>
           <div className="space-y-3 mt-2">
             {[...finalizadas].reverse().map((ev) => (
-              <CardFinalizado key={ev.id} evento={ev} />
+              <CardFinalizado key={`${ev.id}:${ev.devolvido_em}`} evento={ev} onSalvo={carregar} />
             ))}
           </div>
         </details>
@@ -306,6 +309,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
         )}
       </div>
       {erro && <p className="mt-2 text-sm text-red-400">{erro}</p>}
+      {evento.pode_devolver && <Devolucao evento={evento} onSalvo={onSalvo} />}
     </div>
   );
 }
@@ -336,7 +340,7 @@ function LoginsEntrega({ texto }: { texto: string }) {
 }
 
 /** Prova que já passou: só leitura. */
-function CardFinalizado({ evento }: { evento: EventoPortal }) {
+function CardFinalizado({ evento, onSalvo }: { evento: EventoPortal; onSalvo: () => void }) {
   return (
     <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4">
       <div className="flex items-start justify-between gap-2 mb-1">
@@ -366,6 +370,7 @@ function CardFinalizado({ evento }: { evento: EventoPortal }) {
       {evento.obs_recebimento && (
         <p className="mt-3 whitespace-pre-wrap text-xs text-slate-400">📝 {evento.obs_recebimento}</p>
       )}
+      {(evento.pode_devolver || evento.devolvido_em) && <Devolucao evento={evento} onSalvo={onSalvo} />}
     </div>
   );
 }
@@ -426,6 +431,64 @@ function CardEmBreve({ evento }: { evento: EventoPortal }) {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** Fim da prova: o técnico confirma que devolveu todo o material (avisa o escritório). */
+function Devolucao({ evento, onSalvo }: { evento: EventoPortal; onSalvo: () => void }) {
+  const [obs, setObs] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  if (evento.devolvido_em) {
+    return (
+      <div className="mt-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm">
+        <p className="text-cyan-200">↩ Você confirmou a devolução em {dataHora(evento.devolvido_em)}</p>
+        {evento.obs_devolucao && <p className="mt-1 whitespace-pre-wrap text-xs text-slate-300">📝 {evento.obs_devolucao}</p>}
+      </div>
+    );
+  }
+
+  async function devolver() {
+    if (!confirm("Confirmar que você DEVOLVEU todo o material desta prova?")) return;
+    setSalvando(true);
+    setErro("");
+    try {
+      const r = await fetch(`/api/portal/eventos/${evento.id}/devolver`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ observacao: obs }),
+      });
+      if (r.ok) onSalvo();
+      else setErro((await r.json().catch(() => ({}))).error || "Não foi possível salvar. Tente de novo.");
+    } catch {
+      setErro("Sem conexão. Tente de novo.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-lg border border-slate-600 bg-slate-900/60 p-3">
+      <p className="text-xs text-slate-400 uppercase tracking-wide mb-2">Devolução do material</p>
+      <textarea
+        value={obs}
+        onChange={(e) => setObs(e.target.value)}
+        rows={2}
+        maxLength={2000}
+        aria-label="Observação da devolução"
+        placeholder="Observação da devolução (opcional). Ex.: 1 celular ficou com o cliente"
+        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+      />
+      <button
+        onClick={devolver}
+        disabled={salvando}
+        className="mt-2 w-full bg-cyan-700 hover:bg-cyan-600 disabled:bg-slate-600 text-white font-semibold py-3 rounded-lg"
+      >
+        {salvando ? "Enviando..." : "↩ Devolvi todo o material"}
+      </button>
+      {erro && <p className="mt-2 text-sm text-red-400">{erro}</p>}
     </div>
   );
 }

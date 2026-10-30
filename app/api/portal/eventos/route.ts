@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { dbAll, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { formatBR, parseDataBR } from "@/lib/semana";
-import { liberaEm, situacaoProva } from "@/lib/portal-situacao";
+import { liberaEm, podeDevolver, situacaoProva } from "@/lib/portal-situacao";
 
 /** Histórico: provas de até 30 dias atrás aparecem como "Finalizado" (só leitura). */
 const DIAS_PASSADOS = 30;
@@ -29,9 +29,12 @@ export async function GET() {
     obs_recebimento: string | null;
     obs_em: string | null;
     confirmado_em: string | null;
+    devolvido_em: string | null;
+    obs_devolucao: string | null;
   }>(
     `SELECT e.id, e.numero, e.nome, e.data, e.cidade, e.uf, e.local_entrega, e.data_entrega, e.hora_entrega,
-            e.usuarios_evento, et.obs_recebimento, et.obs_em, et.confirmado_em
+            e.usuarios_evento, et.obs_recebimento, et.obs_em, et.confirmado_em,
+            et.devolvido_em, et.obs_devolucao
      FROM evento_tecnicos et JOIN eventos e ON e.id = et.evento_id
      WHERE et.tecnico_id = ?`,
     tid
@@ -56,6 +59,7 @@ export async function GET() {
         // semanas seguintes: só consulta, libera para confirmar na semana da prova
         bloqueado: situacao === "em_breve",
         libera_em: situacao === "em_breve" && d ? formatBR(liberaEm(d)) : null,
+        pode_devolver: podeDevolver(d),
         logins: finalizado ? null : usuarios_evento?.trim() || null,
       };
     });
