@@ -6,8 +6,8 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Chronomax Kits",
-    short_name: "Chronomax",
+    name: "Kits Gestão",
+    short_name: "Kits Gestão",
     description: "Entregas de kit da Chronomax",
     id: "/",
     start_url: "/abrir",

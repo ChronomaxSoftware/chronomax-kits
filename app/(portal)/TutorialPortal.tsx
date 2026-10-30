@@ -27,7 +27,7 @@ const PASSOS = [
   {
     icone: "📲",
     titulo: "Instale no celular",
-    texto: "Deixe o ícone Chronomax na tela inicial e abra direto nas suas provas, sem precisar do link.",
+    texto: "Deixe o ícone Kits Gestão na tela inicial e abra direto nas suas provas, sem precisar do link.",
     instalar: true,
   },
 ];
