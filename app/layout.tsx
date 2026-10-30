@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ChronoMax Kits",
   description: "Gestão de entregas de kit",
+  // iPhone: "Adicionar à Tela de Início" abre como app (sem a barra do Safari)
+  appleWebApp: { capable: true, title: "Chronomax", statusBarStyle: "black" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({

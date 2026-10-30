@@ -11,7 +11,8 @@ export function mensagemConvite(nome: string, link: string): string {
   return (
     `Olá${primeiro ? ` ${primeiro}` : ""}! Este é o seu acesso ao portal de entregas da Chronomax.\n\n` +
     `Na primeira vez, abra o link e crie a sua senha:\n${link}\n\n` +
-    `Guarde este link: ele é o seu acesso. Nas próximas vezes ele abre o login com o seu telefone, é só digitar a senha.`
+    `Guarde este link: ele é o seu acesso. Nas próximas vezes ele abre o login com o seu telefone, é só digitar a senha.\n\n` +
+    `Dica: depois de entrar, siga o card "Instale o app no celular" para ter o ícone Chronomax na tela inicial.`
   );
 }
 

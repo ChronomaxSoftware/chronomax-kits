@@ -48,5 +48,6 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|login).*)"],
+  // manifest e ícones ficam públicos: o celular baixa sem login para instalar o app
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|login|manifest.webmanifest|icon-|apple-icon).*)"],
 };
