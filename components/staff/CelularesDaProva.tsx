@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ModalVinculo, { type AcaoVinculo, type DadosVinculo } from "@/components/staff/ModalVinculo";
+import ConferenciaDoDia from "@/components/staff/ConferenciaDoDia";
 import { provaPadrao } from "@/lib/staff-prova";
 
 type Prova = { id: number; numero: string; nome: string; data: string; cidade: string | null; uf: string | null; celulares: number };
@@ -196,6 +197,8 @@ export default function CelularesDaProva() {
 
       {msg && <p className="text-green-400 text-sm">✓ {msg}</p>}
       {erro && <p className="text-red-400 text-sm">{erro}</p>}
+
+      {tecnico && provaId && <ConferenciaDoDia key={`${provaId}:${celulares.map((c) => c.com_tecnico_id).join()}`} eventoId={provaId} />}
 
       <p className="text-xs text-slate-400">
         {celulares.length} celular{celulares.length === 1 ? "" : "es"} · {emUso} em uso ·{" "}
