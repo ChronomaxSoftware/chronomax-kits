@@ -42,7 +42,18 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
     };
   }, []);
 
-  if (!plat || instalado || (oculto && !forcar)) return null;
+  if (!plat || (instalado && !forcar) || (oculto && !forcar)) return null;
+
+  // Já está dentro do app instalado (ex.: o antigo): para reinstalar precisa do navegador
+  if (instalado) {
+    return (
+      <div className="rounded-lg border border-slate-600 bg-slate-900/60 p-3 text-sm text-slate-200">
+        Você está usando o app instalado. Para instalar o novo, abra{" "}
+        <span className="font-mono text-white break-all">{window.location.origin}</span> no{" "}
+        {plat.startsWith("ios") ? "Safari" : "Chrome"}, entre com seu telefone e senha e siga o passo a passo que aparece.
+      </div>
+    );
+  }
 
   async function instalar() {
     if (!evento) return;
