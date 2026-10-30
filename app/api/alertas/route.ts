@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dbAll, dbGet, dbRun, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { gerarAlertasRetorno } from "@/lib/alertas";
 
 /** Só o escritório vê os alertas (o técnico já é barrado no proxy; reforço aqui). */
 async function escritorio() {
@@ -12,6 +13,8 @@ async function escritorio() {
 export async function GET() {
   await initDB();
   if (!(await escritorio())) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  // Sem agendador na Vercel: os alertas de retorno pendente são gerados quando o sino consulta
+  await gerarAlertasRetorno();
   const alertas = await dbAll(
     "SELECT id, tipo, evento_id, mensagem, criado_em, lido_em FROM alertas ORDER BY criado_em DESC, id DESC LIMIT 30"
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { liberaEm, podeDevolver, situacaoProva } from "./portal-situacao";
-import { textoAlerta } from "./alertas";
+import { pendenciasRetorno, textoAlerta } from "./alertas";
 
 // quarta-feira, 28/10/2026 — semana de seg 26/10 a dom 01/11
 const agora = new Date(2026, 9, 28, 15, 0);
@@ -40,5 +40,34 @@ describe("textoAlerta", () => {
     expect(textoAlerta("devolucao", "Ana", "Corrida X (#12)", " faltou 1 cabo ")).toBe(
       "Ana confirmou que DEVOLVEU todo o material — Corrida X (#12) — obs.: faltou 1 cabo"
     );
+  });
+});
+
+describe("pendenciasRetorno", () => {
+  const base = { base_id: 1, base_nome: "Porto Alegre", base_uf: "RS", evento_numero: "9001", evento_nome: "Maratona" };
+  it("1 alerta por prova+base, só depois do dia da prova, avisando outro estado", () => {
+    const p = pendenciasRetorno(
+      [
+        { ...base, tipo: "Celular", evento_id: 5, evento_data: "27/10/2026", evento_uf: "RJ" },
+        { ...base, tipo: "Celular", evento_id: 5, evento_data: "27/10/2026", evento_uf: "RJ" },
+        { ...base, tipo: "Roteador", evento_id: 5, evento_data: "27/10/2026", evento_uf: "RJ" },
+        { ...base, tipo: "Celular", evento_id: 6, evento_data: "28/10/2026", evento_uf: "RS" }, // é hoje: ainda não
+        { ...base, tipo: "Celular", evento_id: 7, evento_data: "20/10/2026", evento_uf: "rs" },
+      ],
+      agora
+    );
+    expect(p).toEqual([
+      {
+        chave: "retorno:5:1",
+        evento_id: 5,
+        mensagem:
+          "Faltam voltar 3 patrimônios da base Porto Alegre/RS (Celular 2, Roteador 1) — Maratona (#9001), 27/10/2026 · RJ · está em OUTRO ESTADO",
+      },
+      {
+        chave: "retorno:7:1",
+        evento_id: 7,
+        mensagem: "Falta voltar 1 patrimônio da base Porto Alegre/RS (Celular 1) — Maratona (#9001), 20/10/2026 · RS",
+      },
+    ]);
   });
 });

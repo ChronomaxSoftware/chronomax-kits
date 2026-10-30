@@ -5,7 +5,7 @@ import Link from "next/link";
 
 type Alerta = {
   id: number;
-  tipo: "recebimento" | "devolucao";
+  tipo: "recebimento" | "devolucao" | "retorno_pendente";
   evento_id: number | null;
   mensagem: string;
   criado_em: string;
@@ -97,7 +97,7 @@ export default function SinoAlertas() {
                     }`}
                   >
                     <p>
-                      {a.tipo === "recebimento" ? "📦 " : "↩ "}
+                      {a.tipo === "recebimento" ? "📦 " : a.tipo === "devolucao" ? "↩ " : "⏳ "}
                       {a.mensagem}
                     </p>
                     <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
