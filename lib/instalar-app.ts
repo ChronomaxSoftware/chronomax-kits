@@ -19,7 +19,7 @@ export function passosInstalar(p: Plataforma): string[] {
       return [
         "Toque no botão Compartilhar (o quadrado com a seta para cima ⬆, embaixo ou no topo da tela).",
         "Role e toque em \"Adicionar à Tela de Início\".",
-        "Toque em \"Adicionar\". Pronto: abra pelo ícone Chronomax.",
+        "Toque em \"Adicionar\". Pronto: abra pelo ícone Kits Gestão.",
       ];
     case "ios-outro":
       return [
@@ -31,7 +31,7 @@ export function passosInstalar(p: Plataforma): string[] {
       return [
         "Toque no menu ⋮ (três pontinhos no canto de cima do Chrome).",
         "Toque em \"Instalar app\" ou \"Adicionar à tela inicial\".",
-        "Confirme. Pronto: abra pelo ícone Chronomax.",
+        "Confirme. Pronto: abra pelo ícone Kits Gestão.",
       ];
     default:
       return [

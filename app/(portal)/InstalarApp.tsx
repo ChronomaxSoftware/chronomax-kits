@@ -65,7 +65,7 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
     <div className="rounded-xl border border-blue-500/40 bg-blue-500/10 p-4">
       <p className="font-semibold text-white">📲 Instale o app no celular</p>
       <p className="text-xs text-slate-300 mt-1">
-        Fica um ícone Chronomax na tela inicial: abre direto nas suas provas, sem precisar do link.
+        Fica um ícone Kits Gestão na tela inicial: abre direto nas suas provas, sem precisar do link.
       </p>
 
       {evento ? (

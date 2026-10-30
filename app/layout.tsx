@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "ChronoMax Kits",
   description: "Gestão de entregas de kit",
   // iPhone: "Adicionar à Tela de Início" abre como app (sem a barra do Safari)
-  appleWebApp: { capable: true, title: "Chronomax", statusBarStyle: "black" },
+  appleWebApp: { capable: true, title: "Kits Gestão", statusBarStyle: "black" },
 };
 
 export const viewport: Viewport = {
