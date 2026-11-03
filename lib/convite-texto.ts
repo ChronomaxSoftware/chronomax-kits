@@ -28,7 +28,10 @@ export function mensagemConviteUsuario(nome: string, username: string, link: str
   return (
     `Olá${primeiro ? ` ${primeiro}` : ""}! Este é o link para criar a sua senha no sistema Kits Gestão da Chronomax:\n${link}\n\n` +
     `O seu login é: ${username}\n\n` +
-    `O link vale por 24 horas e funciona uma vez só. Depois, entre com o login e a senha que você criou.`
+    `O link vale por 24 horas e funciona uma vez só. Depois, entre com o login e a senha que você criou.\n\n` +
+    `📲 Salve como app no celular (fica o ícone Kits Gestão na tela inicial), depois de entrar:\n` +
+    `• Android (Chrome): menu ⋮ → "Instalar app" ou "Adicionar à tela inicial"\n` +
+    `• iPhone (Safari): Compartilhar ⬆ → "Adicionar à Tela de Início"`
   );
 }
 

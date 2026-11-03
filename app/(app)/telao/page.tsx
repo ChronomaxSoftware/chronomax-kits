@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/session";
 import AlterarSenha from "../config/AlterarSenha";
 import ListaTelao from "./ListaTelao";
+import { CardInstalarTelao, ComoInstalarTelao } from "./InstalarAppTelao";
 
 /** Aba Telão: provas com telão no pedido — cobrar a arte do cliente e dar o ok do telão pronto. */
 export default async function TelaoPage() {
@@ -14,7 +15,13 @@ export default async function TelaoPage() {
         marque <strong className="text-slate-200">🎨 Arte cobrada</strong> quando cobrar e{" "}
         <strong className="text-slate-200">📺 Telão pronto</strong> quando estiver tudo certo.
       </p>
+      {soTelao && (
+        <div className="mb-5">
+          <CardInstalarTelao />
+        </div>
+      )}
       <ListaTelao podeAbrirProva={!soTelao} />
+      {soTelao && <ComoInstalarTelao />}
       {/* Quem é Só Telão não tem Configurações: a troca da própria senha fica aqui */}
       {soTelao && <AlterarSenha />}
     </div>
