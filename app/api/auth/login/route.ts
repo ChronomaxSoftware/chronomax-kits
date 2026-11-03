@@ -4,6 +4,7 @@ import { dbGet, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { candidatosLogin } from "@/lib/login-tecnico";
 import { SENHA_INICIAL_ADMIN } from "@/lib/senha-admin";
+import { roleDoPerfil } from "@/lib/perfil-usuario";
 
 export async function POST(req: NextRequest) {
   await initDB();
@@ -13,8 +14,8 @@ export async function POST(req: NextRequest) {
   }
 
   // 1. Tenta admin (tabela users)
-  const user = await dbGet<{ id: number; username: string; password_hash: string; name: string }>(
-    "SELECT id, username, password_hash, name FROM users WHERE username = ? AND COALESCE(ativo, 1) = 1",
+  const user = await dbGet<{ id: number; username: string; password_hash: string; name: string; perfil: string | null }>(
+    "SELECT id, username, password_hash, name, perfil FROM users WHERE username = ? AND COALESCE(ativo, 1) = 1",
     String(username).trim().toLowerCase()
   );
   if (user && bcrypt.compareSync(password, user.password_hash)) {
@@ -22,12 +23,12 @@ export async function POST(req: NextRequest) {
     session.userId = user.id;
     session.username = user.username;
     session.name = user.name;
-    session.role = "admin";
+    session.role = roleDoPerfil(user.perfil);
     session.tecnicoId = undefined;
     session.senhaPadrao = password === SENHA_INICIAL_ADMIN;
     session.isLoggedIn = true;
     await session.save();
-    return NextResponse.json({ ok: true, name: user.name, role: "admin" });
+    return NextResponse.json({ ok: true, name: user.name, role: session.role });
   }
 
   // 2. Tenta técnico (tabela tecnicos, colunas login/senha_hash). Aceita o telefone

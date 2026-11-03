@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { destinoDoRole } from "@/lib/perfil-usuario";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function LoginPage() {
       setErro(data.error || "Erro ao entrar");
       return;
     }
-    router.push(data.role === "tecnico" ? "/portal" : "/");
+    router.push(destinoDoRole(data.role));
     router.refresh();
   }
 

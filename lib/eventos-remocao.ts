@@ -27,6 +27,7 @@ export function statementsApagarEventos(ids: number[], motivo: string): { sql: s
     { sql: `UPDATE staff_assignments SET event_id = NULL WHERE event_id IN (${ph})`, args: [...ids] },
     { sql: `DELETE FROM staff_celular_tecnico WHERE evento_id IN (${ph})`, args: [...ids] },
     { sql: `DELETE FROM staff_conferencia WHERE evento_id IN (${ph})`, args: [...ids] },
+    { sql: `DELETE FROM telao_status WHERE evento_id IN (${ph})`, args: [...ids] },
     // Por fim, o próprio evento
     { sql: `DELETE FROM eventos WHERE id IN (${ph})`, args: [...ids] },
   ];
