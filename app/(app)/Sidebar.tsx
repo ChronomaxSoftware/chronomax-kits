@@ -15,8 +15,12 @@ const LINKS = [
   { href: "/bases", label: "Bases" },
   { href: "/alugados", label: "Alugados" },
   { href: "/staff", label: "Controle de Staff" },
+  { href: "/telao", label: "Telão" },
   { href: "/config", label: "Configurações" },
 ];
+
+/** Perfil "Só Telão": só a aba dele (a troca de senha fica dentro da própria aba). */
+const LINKS_TELAO = [{ href: "/telao", label: "Telão" }];
 
 /** Logo oficial + nome. `compacta` = versão da barra de topo do mobile. */
 function Marca({ compacta = false }: { compacta?: boolean }) {
@@ -36,7 +40,9 @@ function Marca({ compacta = false }: { compacta?: boolean }) {
   );
 }
 
-export default function Sidebar({ name, username }: { name: string; username: string }) {
+export default function Sidebar({ name, username, role }: { name: string; username: string; role?: string }) {
+  const soTelao = role === "telao";
+  const links = soTelao ? LINKS_TELAO : LINKS;
   const [aberto, setAberto] = useState(false);
   const pathname = usePathname();
 
@@ -46,7 +52,7 @@ export default function Sidebar({ name, username }: { name: string; username: st
 
   const nav = (
     <nav className="flex-1 space-y-1 overflow-y-auto">
-      {LINKS.map((l) => (
+      {links.map((l) => (
         <Link
           key={l.href}
           href={l.href}
@@ -85,16 +91,14 @@ export default function Sidebar({ name, username }: { name: string; username: st
           </svg>
         </button>
         <Marca compacta />
-        <div className="ml-auto">
-          <SinoAlertas />
-        </div>
+        <div className="ml-auto">{!soTelao && <SinoAlertas />}</div>
       </header>
 
       {/* Barra lateral fixa — só no desktop */}
       <aside className="hidden lg:flex w-64 shrink-0 bg-slate-950 border-r border-slate-800 p-4 flex-col print:hidden">
         <div className="mb-6 flex items-center justify-between gap-2">
           <Marca />
-          <SinoAlertas />
+          {!soTelao && <SinoAlertas />}
         </div>
         {nav}
         {rodape}

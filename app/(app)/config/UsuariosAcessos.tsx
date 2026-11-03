@@ -4,22 +4,30 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { normalizarNome } from "@/lib/tecnico-match";
 import BotaoConviteTecnico from "@/components/BotaoConviteTecnico";
+import BotaoLinkSenhaUsuario from "@/components/BotaoLinkSenhaUsuario";
+import { ROTULO_PERFIL, type PerfilUsuario } from "@/lib/perfil-usuario";
 
-type Usuario = { id: number; username: string; name: string; ativo: number; created_at: string | null };
+type Usuario = { id: number; username: string; name: string; ativo: number; perfil: PerfilUsuario; created_at: string | null };
 type Tecnico = { id: number; nome: string; telefone: string | null; login: string | null; tem_senha: number; ativo: number };
 
 const campo = "w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm";
 
 /**
  * Configurações → Usuários e acessos:
- * - usuários do escritório (acesso total): criar, trocar senha, desativar/reativar;
+ * - usuários do escritório: criar (acesso total ou Só Telão), trocar senha, mandar o link de
+ *   senha (uso único, 24h), mudar o perfil, desativar/reativar;
  * - técnicos: definir/trocar senha do portal (só vê as provas dele) ou tirar o acesso.
  */
 export default function UsuariosAcessos() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
-  const [novo, setNovo] = useState({ name: "", username: "", password: "" });
+  const [novo, setNovo] = useState<{ name: string; username: string; password: string; perfil: PerfilUsuario }>({
+    name: "",
+    username: "",
+    password: "",
+    perfil: "total",
+  });
   const [senhaDe, setSenhaDe] = useState<{ tipo: "u" | "t"; id: number; nome: string } | null>(null);
   const [novaSenha, setNovaSenha] = useState("");
   const [busca, setBusca] = useState("");
@@ -59,8 +67,10 @@ export default function UsuariosAcessos() {
 
   async function criar(e: FormEvent) {
     e.preventDefault();
-    if (await chamar("/api/usuarios", "POST", novo, `Usuário ${novo.username.trim().toLowerCase()} criado.`)) {
-      setNovo({ name: "", username: "", password: "" });
+    const login = novo.username.trim().toLowerCase();
+    const aviso = novo.password ? `Usuário ${login} criado.` : `Usuário ${login} criado. Agora clique em 🔗 Link de senha e envie para a pessoa.`;
+    if (await chamar("/api/usuarios", "POST", novo, aviso)) {
+      setNovo({ name: "", username: "", password: "", perfil: "total" });
     }
   }
 
@@ -91,7 +101,8 @@ export default function UsuariosAcessos() {
       <div>
         <h2 className="text-lg font-semibold text-white">Usuários e acessos</h2>
         <p className="text-xs text-slate-400">
-          Usuário do escritório tem acesso total. Técnico entra pelo telefone e vê só as provas dele, com o material e o
+          Usuário do escritório tem acesso total, ou só à aba Telão (perfil Só Telão). Para criar ou trocar a senha, mande o
+          🔗 link de senha: vale 24h e funciona uma vez. Técnico entra pelo telefone e vê só as provas dele, com o material e o
           botão de confirmar o recebimento. Para o técnico, o mais fácil é mandar o 🔗 link de acesso: ele mesmo cria a
           senha.
         </p>
@@ -136,20 +147,29 @@ export default function UsuariosAcessos() {
 
       {/* Usuários do escritório */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-slate-200">Usuários do escritório (acesso total)</h3>
-        <form onSubmit={criar} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] gap-2">
+        <h3 className="text-sm font-semibold text-slate-200">Usuários do escritório</h3>
+        <form onSubmit={criar} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto_auto] gap-2">
           <input aria-label="Nome" className={campo} placeholder="Nome" value={novo.name} onChange={(e) => setNovo({ ...novo, name: e.target.value })} />
           <input aria-label="Login" className={campo} placeholder="Login (ex.: maria)" value={novo.username} onChange={(e) => setNovo({ ...novo, username: e.target.value })} />
           <input
             aria-label="Senha"
             type="password"
             className={campo}
-            placeholder="Senha (mín. 10)"
+            placeholder="Senha (opcional, mín. 10)"
             value={novo.password}
             onChange={(e) => setNovo({ ...novo, password: e.target.value })}
           />
+          <select
+            aria-label="Perfil"
+            className={campo}
+            value={novo.perfil}
+            onChange={(e) => setNovo({ ...novo, perfil: e.target.value as PerfilUsuario })}
+          >
+            <option value="total">{ROTULO_PERFIL.total}</option>
+            <option value="telao">{ROTULO_PERFIL.telao}</option>
+          </select>
           <button
-            disabled={ocupado || !novo.name || !novo.username || !novo.password}
+            disabled={ocupado || !novo.name || !novo.username}
             className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg whitespace-nowrap"
           >
             + Criar
@@ -162,8 +182,28 @@ export default function UsuariosAcessos() {
                 <span className={u.ativo ? "text-white" : "text-slate-500 line-through"}>{u.name}</span>{" "}
                 <span className="text-xs text-slate-400 font-mono">{u.username}</span>
                 {!u.ativo && <span className="ml-2 text-xs text-amber-300">desativado</span>}
+                {u.ativo ? (
+                  <div className="mt-1">
+                    <BotaoLinkSenhaUsuario usuario={u} />
+                  </div>
+                ) : null}
               </div>
-              <div className="flex gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <select
+                  aria-label={`Perfil de ${u.name}`}
+                  disabled={ocupado}
+                  value={u.perfil}
+                  onChange={(e) => {
+                    const p = e.target.value as PerfilUsuario;
+                    if (confirm(`Mudar ${u.name} para "${ROTULO_PERFIL[p]}"? Vale em até 1 minuto (se estiver logado, precisa entrar de novo).`)) {
+                      chamar(`/api/usuarios/${u.id}`, "PUT", { perfil: p }, `${u.name} agora é "${ROTULO_PERFIL[p]}".`);
+                    }
+                  }}
+                  className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white"
+                >
+                  <option value="total">{ROTULO_PERFIL.total}</option>
+                  <option value="telao">{ROTULO_PERFIL.telao}</option>
+                </select>
                 <button onClick={() => { setSenhaDe({ tipo: "u", id: u.id, nome: u.name }); setNovaSenha(""); }} className="text-blue-400 hover:text-blue-300">
                   Trocar senha
                 </button>

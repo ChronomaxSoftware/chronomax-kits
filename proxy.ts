@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { sessionOptions, SessionData } from "@/lib/session";
 import { sessaoAtiva } from "@/lib/acesso-ativo";
+import { destinoDoRole, telaoPodeAcessar } from "@/lib/perfil-usuario";
 
 export async function proxy(req: NextRequest) {
   const res = NextResponse.next();
@@ -14,8 +15,7 @@ export async function proxy(req: NextRequest) {
 
   if (isLoginPath || isApiAuth) {
     if (isLoginPath && session.isLoggedIn) {
-      const dest = session.role === "tecnico" ? "/portal" : "/";
-      return NextResponse.redirect(new URL(dest, req.url));
+      return NextResponse.redirect(new URL(destinoDoRole(session.role), req.url));
     }
     return res;
   }
@@ -42,6 +42,12 @@ export async function proxy(req: NextRequest) {
     if (!permitido) {
       return NextResponse.redirect(new URL("/portal", req.url));
     }
+  }
+
+  // Perfil "Só Telão": só a aba Telão e as APIs dela
+  if (session.role === "telao" && !telaoPodeAcessar(pathname)) {
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Sem acesso" }, { status: 403 });
+    return NextResponse.redirect(new URL("/telao", req.url));
   }
 
   return res;
