@@ -5,8 +5,8 @@ export type SessionData = {
   userId?: number;
   username?: string;
   name?: string;
-  /** admin = usuário do escritório com acesso total; telao = perfil Só Telão. */
-  role?: "admin" | "telao" | "tecnico";
+  /** admin = usuário do escritório com acesso total; telao = Só Telão; envios = Só Envios. */
+  role?: "admin" | "telao" | "envios" | "tecnico";
   tecnicoId?: number;
   /** Admin entrou com a senha inicial do seed — o painel mostra aviso para trocar. */
   senhaPadrao?: boolean;

@@ -20,5 +20,6 @@ describe("passosInstalar por público", () => {
     expect(passosInstalar("ios-outro").join(" ")).toMatch(/telefone e senha/);
     expect(passosInstalar("ios-outro", "telao").join(" ")).toMatch(/login e senha/);
     expect(passosInstalar("outro", "telao").join(" ")).not.toMatch(/telefone/);
+    expect(passosInstalar("ios-outro", "envios").join(" ")).toMatch(/login e senha/);
   });
 });

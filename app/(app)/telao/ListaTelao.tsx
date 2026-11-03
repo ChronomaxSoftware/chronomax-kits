@@ -291,7 +291,7 @@ function CardTelao({
   );
 }
 
-function BotaoEtapa({
+export function BotaoEtapa({
   rotulo,
   em,
   por,

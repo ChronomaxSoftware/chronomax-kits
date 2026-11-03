@@ -6,6 +6,7 @@ import BotaoTxtSemana from "@/components/BotaoTxtSemana";
 import BotaoTxtSeparacao from "@/components/BotaoTxtSeparacao";
 import { textoNotaFiscalSemana } from "@/lib/nota-fiscal";
 import { textoTecnicosSemana } from "@/lib/txt-tecnicos";
+import { rotuloDataEnvio } from "@/lib/envios";
 import { parseDataBR, inicioSemana, fimSemana, formatBR, chaveSemana, dataNaJanela, JANELA_SEMANAS } from "@/lib/semana";
 
 type Produto = { id: number; nome: string };
@@ -34,6 +35,10 @@ type Evento = {
   base_final_ok_em: string | null;
   tem_kit: number;
   tipo_kit: "entrega" | "sistema" | null;
+  no_envio?: number;
+  data_envio?: string | null;
+  envio_material_em?: string | null;
+  envio_numeros_em?: string | null;
   tecnicos: { id: number; nome: string; funcao?: string | null }[];
   produtos: { id: number; nome: string; quantidade: number }[];
   qtd_notebook_atendimento: number;
@@ -901,6 +906,15 @@ function CardEvento({ evento, onAtualizar }: { evento: Evento; onAtualizar: (e: 
               💻 SISTEMA
             </span>
           )}
+          {evento.no_envio ? (
+            <span
+              className={`${evento.envio_material_em && evento.envio_numeros_em ? "bg-emerald-700" : "bg-sky-700"} text-white text-[10px] font-bold px-2 py-0.5 rounded`}
+              title={evento.envio_material_em && evento.envio_numeros_em ? "Material e números já enviados" : "Na aba Envios: material e números a enviar"}
+            >
+              📦 {evento.data_envio ? rotuloDataEnvio(evento.data_envio) : "Envio"}
+              {evento.envio_material_em && evento.envio_numeros_em ? " ✓" : ""}
+            </span>
+          ) : null}
           <span className={`${corStatus} text-white text-xs px-2 py-0.5 rounded`}>{labelStatus}</span>
         </div>
       </div>

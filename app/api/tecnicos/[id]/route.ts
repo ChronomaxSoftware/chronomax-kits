@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { dbGet, dbRun, initDB } from "@/lib/db";
 import { resolverLoginTecnico, validarSenhaTecnico } from "@/lib/login-tecnico";
+import { ENDERECO_MAX } from "@/lib/envios";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
@@ -26,6 +27,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if ("telefone" in body) {
     updates.push("telefone = ?");
     vals.push(body.telefone || null);
+  }
+  if ("endereco" in body) {
+    // Para onde vai o material na aba Envios
+    updates.push("endereco = ?");
+    vals.push(String(body.endereco ?? "").trim().slice(0, ENDERECO_MAX) || null);
   }
   if ("ativo" in body) {
     updates.push("ativo = ?");

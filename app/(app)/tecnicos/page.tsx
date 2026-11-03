@@ -8,6 +8,7 @@ type Tecnico = {
   id: number;
   nome: string;
   telefone: string | null;
+  endereco?: string | null;
   ativo: number;
   login: string | null;
   tem_senha?: number;
@@ -17,6 +18,7 @@ export default function TecnicosPage() {
   const [lista, setLista] = useState<Tecnico[]>([]);
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
+  const [endereco, setEndereco] = useState("");
   const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
   const [editando, setEditando] = useState<Tecnico | null>(null);
@@ -60,7 +62,7 @@ export default function TecnicosPage() {
       setErro("A senha deve ter pelo menos 8 caracteres.");
       return;
     }
-    const body ={ nome, telefone, login, ...(senha ? { senha } : {}), ativo: 1 };
+    const body = { nome, telefone, endereco, login, ...(senha ? { senha } : {}), ativo: 1 };
     const r = editando
       ? await fetch(`/api/tecnicos/${editando.id}`, {
           method: "PUT",
@@ -91,6 +93,7 @@ export default function TecnicosPage() {
     setEditando(t);
     setNome(t.nome);
     setTelefone(t.telefone || "");
+    setEndereco(t.endereco || "");
     setLogin(t.login || "");
     setSenha("");
     setErro("");
@@ -100,6 +103,7 @@ export default function TecnicosPage() {
     setEditando(null);
     setNome("");
     setTelefone("");
+    setEndereco("");
     setLogin("");
     setSenha("");
     setErro("");
@@ -182,6 +186,16 @@ export default function TecnicosPage() {
               placeholder="(11) 99999-9999"
             />
           </div>
+          <div className="sm:col-span-2">
+            <label className="block text-xs text-slate-400 mb-1">Endereço (para onde vai o material — aparece na aba Envios)</label>
+            <input
+              value={endereco}
+              onChange={(e) => setEndereco(e.target.value)}
+              maxLength={300}
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              placeholder="Rua, número, complemento, bairro, cidade/UF, CEP"
+            />
+          </div>
           <div>
             <label className="block text-xs text-slate-400 mb-1">Login do portal (em branco = telefone)</label>
             <input
@@ -241,7 +255,10 @@ export default function TecnicosPage() {
               {filtrados.map((t) => (
                 <tr key={t.id} className="border-t border-slate-700">
                   <td className="px-4 py-3 text-white">{t.nome}</td>
-                  <td className="px-4 py-3 text-slate-300">{t.telefone || "-"}</td>
+                  <td className="px-4 py-3 text-slate-300">
+                    {t.telefone || "-"}
+                    {t.endereco && <span className="block text-xs text-slate-500 max-w-[16rem] truncate" title={t.endereco}>📍 {t.endereco}</span>}
+                  </td>
                   <td className="px-4 py-3">
                     {t.login && t.tem_senha ? (
                       <span className="text-green-400 text-sm">✓ {t.login}</span>
