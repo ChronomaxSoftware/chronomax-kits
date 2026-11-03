@@ -14,3 +14,11 @@ describe("plataforma", () => {
     expect(passosInstalar("ios-outro").join(" ")).toMatch(/Safari/);
   });
 });
+
+describe("passosInstalar por público", () => {
+  it("técnico entra pelo telefone; Só Telão pelo login", () => {
+    expect(passosInstalar("ios-outro").join(" ")).toMatch(/telefone e senha/);
+    expect(passosInstalar("ios-outro", "telao").join(" ")).toMatch(/login e senha/);
+    expect(passosInstalar("outro", "telao").join(" ")).not.toMatch(/telefone/);
+  });
+});

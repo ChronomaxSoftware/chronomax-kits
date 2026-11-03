@@ -1,4 +1,12 @@
-/** Instruções para fixar o portal na tela inicial do celular (vira um "app"). */
+/** Instruções para fixar o sistema na tela inicial do celular (vira um "app"). */
+
+/** Quem vê o card: técnico (portal, entra pelo telefone) ou perfil Só Telão (entra pelo login). */
+export type PublicoApp = "tecnico" | "telao";
+
+export const TEXTOS_APP: Record<PublicoApp, { credencial: string; abre: string }> = {
+  tecnico: { credencial: "seu telefone e senha", abre: "abre direto nas suas provas, sem precisar do link" },
+  telao: { credencial: "seu login e senha", abre: "abre direto na aba Telão, sem precisar procurar o site" },
+};
 
 export type Plataforma = "ios-safari" | "ios-outro" | "android" | "outro";
 
@@ -13,7 +21,8 @@ export function plataforma(userAgent: string): Plataforma {
   return "outro";
 }
 
-export function passosInstalar(p: Plataforma): string[] {
+export function passosInstalar(p: Plataforma, publico: PublicoApp = "tecnico"): string[] {
+  const cred = TEXTOS_APP[publico].credencial;
   switch (p) {
     case "ios-safari":
       return [
@@ -24,7 +33,7 @@ export function passosInstalar(p: Plataforma): string[] {
     case "ios-outro":
       return [
         "No iPhone só dá para instalar pelo Safari.",
-        "Copie o endereço desta página, abra no Safari e entre com seu telefone e senha.",
+        `Copie o endereço desta página, abra no Safari e entre com ${cred}.`,
         "No Safari: Compartilhar ⬆ → \"Adicionar à Tela de Início\".",
       ];
     case "android":
@@ -35,7 +44,7 @@ export function passosInstalar(p: Plataforma): string[] {
       ];
     default:
       return [
-        "Abra este endereço no navegador do seu celular e entre com seu telefone e senha.",
+        `Abra este endereço no navegador do seu celular e entre com ${cred}.`,
         "Android (Chrome): menu ⋮ → \"Instalar app\" / \"Adicionar à tela inicial\".",
         "iPhone (Safari): Compartilhar ⬆ → \"Adicionar à Tela de Início\".",
       ];

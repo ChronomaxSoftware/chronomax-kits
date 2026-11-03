@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { passosInstalar, plataforma, type Plataforma } from "@/lib/instalar-app";
+import { TEXTOS_APP, passosInstalar, plataforma, type Plataforma, type PublicoApp } from "@/lib/instalar-app";
 
 /** Evento do Chrome/Android que permite instalar com 1 toque. */
 type EventoInstalar = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
-const OCULTO = "chronomax_instalar_oculto";
+/** "Não mostrar mais" fica guardado por público (o técnico mantém a chave antiga). */
+const OCULTO: Record<PublicoApp, string> = { tecnico: "chronomax_instalar_oculto", telao: "chronomax_instalar_oculto_telao" };
 
 /** Plataforma, se já está aberto como app e a instalação de 1 toque (Chrome/Android). */
 export function useInstalacao() {
@@ -50,17 +51,18 @@ export function useInstalacao() {
  * Card "Instale o app no celular": botão de 1 toque no Android (quando o Chrome deixa)
  * ou o passo a passo (iPhone/Safari e demais). Some quando já está aberto como app.
  */
-export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
+export default function InstalarApp({ forcar = false, publico = "tecnico" }: { forcar?: boolean; publico?: PublicoApp }) {
+  const textos = TEXTOS_APP[publico];
   const { plat, instalado, podeInstalar, instalar } = useInstalacao();
   const [oculto, setOculto] = useState(false);
 
   useEffect(() => {
     try {
-      setOculto(localStorage.getItem(OCULTO) === "1");
+      setOculto(localStorage.getItem(OCULTO[publico]) === "1");
     } catch {
       // sem armazenamento: mostra normalmente
     }
-  }, []);
+  }, [publico]);
 
   if (!plat || (instalado && !forcar) || (oculto && !forcar)) return null;
 
@@ -70,7 +72,7 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
       <div className="rounded-lg border border-slate-600 bg-slate-900/60 p-3 text-sm text-slate-200">
         Você está usando o app instalado. Para instalar o novo, abra{" "}
         <span className="font-mono text-white break-all">{window.location.origin}</span> no{" "}
-        {plat.startsWith("ios") ? "Safari" : "Chrome"}, entre com seu telefone e senha e siga o passo a passo que aparece.
+        {plat.startsWith("ios") ? "Safari" : "Chrome"}, entre com {textos.credencial} e siga o passo a passo que aparece.
       </div>
     );
   }
@@ -78,7 +80,7 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
   function esconder() {
     setOculto(true);
     try {
-      localStorage.setItem(OCULTO, "1");
+      localStorage.setItem(OCULTO[publico], "1");
     } catch {
       // ignora
     }
@@ -88,7 +90,7 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
     <div className="rounded-xl border border-blue-500/40 bg-blue-500/10 p-4">
       <p className="font-semibold text-white">📲 Instale o app no celular</p>
       <p className="text-xs text-slate-300 mt-1">
-        Fica um ícone Kits Gestão na tela inicial: abre direto nas suas provas, sem precisar do link.
+        Fica um ícone Kits Gestão na tela inicial: {textos.abre}.
       </p>
 
       {podeInstalar ? (
@@ -100,7 +102,7 @@ export default function InstalarApp({ forcar = false }: { forcar?: boolean }) {
         </button>
       ) : (
         <ol className="mt-3 space-y-1.5 text-sm text-slate-200 list-decimal list-inside">
-          {passosInstalar(plat).map((p) => (
+          {passosInstalar(plat, publico).map((p) => (
             <li key={p}>{p}</li>
           ))}
         </ol>
