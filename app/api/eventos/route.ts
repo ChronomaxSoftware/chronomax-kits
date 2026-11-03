@@ -25,6 +25,11 @@ type EventoRow = {
   base_final_ok_em: string | null;
   tem_kit: number;
   tipo_kit: "entrega" | "sistema" | null;
+  /** Prova está na aba Envios? (1 = sim) + data de envio e o que já foi enviado */
+  no_envio: number;
+  data_envio: string | null;
+  envio_material_em: string | null;
+  envio_numeros_em: string | null;
 };
 
 export async function GET() {
@@ -33,7 +38,9 @@ export async function GET() {
   // Sem limite: retorna TODOS os eventos. A ordenação por data é feita em JS
   // porque `data` é texto "dd/mm/yyyy" (ORDER BY no SQL ordenaria alfabeticamente).
   const eventos = await dbAll<EventoRow>(
-    `SELECT id, numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, data_entrega, hora_entrega, local_entrega, status, url_gestao, base1_ok, base_final_ok, base1_ok_em, base_final_ok_em, tem_kit, tipo_kit FROM eventos`
+    `SELECT e.id, e.numero, e.nome, e.data, e.cidade, e.uf, e.qtd_celulares, e.dias_entrega, e.qtd_atletas, e.nivel, e.data_entrega, e.hora_entrega, e.local_entrega, e.status, e.url_gestao, e.base1_ok, e.base_final_ok, e.base1_ok_em, e.base_final_ok_em, e.tem_kit, e.tipo_kit,
+            (v.evento_id IS NOT NULL) AS no_envio, v.data_envio, v.material_em AS envio_material_em, v.numeros_em AS envio_numeros_em
+     FROM eventos e LEFT JOIN envio_status v ON v.evento_id = e.id`
   );
 
   // Só técnicos ativos; inclui função e data/hora da atribuição

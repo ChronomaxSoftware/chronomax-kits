@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getIronSession } from "iron-session";
 import { sessionOptions, SessionData } from "@/lib/session";
 import { sessaoAtiva } from "@/lib/acesso-ativo";
-import { destinoDoRole, telaoPodeAcessar } from "@/lib/perfil-usuario";
+import { destinoDoRole, ehRoleRestrito, restritoPodeAcessar } from "@/lib/perfil-usuario";
 
 export async function proxy(req: NextRequest) {
   const res = NextResponse.next();
@@ -44,10 +44,10 @@ export async function proxy(req: NextRequest) {
     }
   }
 
-  // Perfil "Só Telão": só a aba Telão e as APIs dela
-  if (session.role === "telao" && !telaoPodeAcessar(pathname)) {
+  // Perfis "Só Telão" / "Só Envios": só a aba dele e as APIs dela
+  if (ehRoleRestrito(session.role) && !restritoPodeAcessar(session.role, pathname)) {
     if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Sem acesso" }, { status: 403 });
-    return NextResponse.redirect(new URL("/telao", req.url));
+    return NextResponse.redirect(new URL(destinoDoRole(session.role), req.url));
   }
 
   return res;

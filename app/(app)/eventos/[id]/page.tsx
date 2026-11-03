@@ -7,6 +7,7 @@ import Link from "next/link";
 import PainelConferencia from "@/components/staff/PainelConferencia";
 import { TipoEquipamento, tipoDeProduto } from "@/lib/equipamentos";
 import SeletorEquipamentosProduto, { EquipamentoResumo } from "@/components/equipamentos/SeletorEquipamentosProduto";
+import CardEnvioProva from "@/components/envios/CardEnvioProva";
 
 type Evento = {
   id: number;
@@ -47,6 +48,7 @@ type Evento = {
     id: number;
     nome: string;
     telefone: string | null;
+    endereco?: string | null;
     funcao?: string | null;
     atribuido_em?: string | null;
     obs_recebimento?: string | null;
@@ -604,6 +606,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
               </div>
             </div>
           </Card>
+
+          <CardEnvioProva eventoId={evento.id} tecnicos={evento.tecnicos} />
 
           <Card titulo={`Técnicos (${tecnicosSel.size})`}>
             {evento.tecnicos.length > 0 && (

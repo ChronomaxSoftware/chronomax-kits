@@ -16,11 +16,15 @@ const LINKS = [
   { href: "/alugados", label: "Alugados" },
   { href: "/staff", label: "Controle de Staff" },
   { href: "/telao", label: "Telão" },
+  { href: "/envios", label: "Envios" },
   { href: "/config", label: "Configurações" },
 ];
 
-/** Perfil "Só Telão": só a aba dele (a troca de senha fica dentro da própria aba). */
-const LINKS_TELAO = [{ href: "/telao", label: "Telão" }];
+/** Perfis "Só Telão" / "Só Envios": só a aba dele (a troca de senha fica dentro da própria aba). */
+const LINKS_RESTRITO: Record<string, { href: string; label: string }[]> = {
+  telao: [{ href: "/telao", label: "Telão" }],
+  envios: [{ href: "/envios", label: "Envios" }],
+};
 
 /** Logo oficial + nome. `compacta` = versão da barra de topo do mobile. */
 function Marca({ compacta = false }: { compacta?: boolean }) {
@@ -41,8 +45,8 @@ function Marca({ compacta = false }: { compacta?: boolean }) {
 }
 
 export default function Sidebar({ name, username, role }: { name: string; username: string; role?: string }) {
-  const soTelao = role === "telao";
-  const links = soTelao ? LINKS_TELAO : LINKS;
+  const restrito = !!role && role in LINKS_RESTRITO;
+  const links = restrito ? LINKS_RESTRITO[role!] : LINKS;
   const [aberto, setAberto] = useState(false);
   const pathname = usePathname();
 
@@ -91,14 +95,14 @@ export default function Sidebar({ name, username, role }: { name: string; userna
           </svg>
         </button>
         <Marca compacta />
-        <div className="ml-auto">{!soTelao && <SinoAlertas />}</div>
+        <div className="ml-auto">{!restrito && <SinoAlertas />}</div>
       </header>
 
       {/* Barra lateral fixa — só no desktop */}
       <aside className="hidden lg:flex w-64 shrink-0 bg-slate-950 border-r border-slate-800 p-4 flex-col print:hidden">
         <div className="mb-6 flex items-center justify-between gap-2">
           <Marca />
-          {!soTelao && <SinoAlertas />}
+          {!restrito && <SinoAlertas />}
         </div>
         {nav}
         {rodape}

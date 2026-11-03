@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ENDERECO_MAX } from "@/lib/envios";
 import bcrypt from "bcryptjs";
 import { dbAll, dbRun, initDB } from "@/lib/db";
 import { resolverLoginTecnico, validarSenhaTecnico } from "@/lib/login-tecnico";
@@ -8,7 +9,7 @@ export async function GET(req: NextRequest) {
   // Por padrão só técnicos ativos (seletores/atribuição); ?incluirInativos=1 para a tela de gestão.
   const incluirInativos = req.nextUrl.searchParams.get("incluirInativos") === "1";
   const rows = await dbAll(
-    `SELECT id, nome, telefone, ativo, login,
+    `SELECT id, nome, telefone, endereco, ativo, login,
             (senha_hash IS NOT NULL AND senha_hash != '') AS tem_senha
      FROM tecnicos ${incluirInativos ? "" : "WHERE ativo = 1"} ORDER BY nome`
   );
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   await initDB();
-  const { nome, telefone, login, senha } = await req.json();
+  const { nome, telefone, endereco, login, senha } = await req.json();
   if (!nome?.trim()) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
   const erroSenha = validarSenhaTecnico(senha);
   if (erroSenha) return NextResponse.json({ error: erroSenha }, { status: 400 });
@@ -32,9 +33,10 @@ export async function POST(req: NextRequest) {
   const senhaHash = senha ? bcrypt.hashSync(senha, 10) : null;
   try {
     const r = await dbRun(
-      "INSERT INTO tecnicos (nome, telefone, login, senha_hash) VALUES (?, ?, ?, ?)",
+      "INSERT INTO tecnicos (nome, telefone, endereco, login, senha_hash) VALUES (?, ?, ?, ?, ?)",
       nome.trim(),
       String(telefone ?? "").trim() || null,
+      String(endereco ?? "").trim().slice(0, ENDERECO_MAX) || null,
       loginVal,
       senhaHash
     );

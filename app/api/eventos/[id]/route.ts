@@ -10,7 +10,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   if (!evento) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
 
   const tecnicos = await dbAll(
-    `SELECT t.id, t.nome, t.telefone, t.ativo, et.funcao, et.atribuido_em,
+    `SELECT t.id, t.nome, t.telefone, t.endereco, t.ativo, et.funcao, et.atribuido_em,
             et.obs_recebimento, et.obs_em, et.confirmado_em, et.devolvido_em, et.obs_devolucao
      FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id
      WHERE et.evento_id = ? AND t.ativo = 1`,

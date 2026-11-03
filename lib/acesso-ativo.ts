@@ -7,13 +7,14 @@
 
 import { dbGet } from "./db";
 import type { SessionData } from "./session";
+import { perfilDoRole } from "./perfil-usuario";
 
 const TTL_MS = 60_000;
 const cache = new Map<string, { ativo: boolean; ate: number }>();
 
 function chave(s: SessionData): string | null {
   if (s.role === "tecnico" && s.tecnicoId) return `t:${s.tecnicoId}`;
-  if ((s.role === "admin" || s.role === "telao") && s.userId) return `${s.role}:${s.userId}`;
+  if ((s.role === "admin" || s.role === "telao" || s.role === "envios") && s.userId) return `${s.role}:${s.userId}`;
   return null;
 }
 
@@ -31,11 +32,11 @@ export async function sessaoAtiva(s: SessionData): Promise<boolean> {
             "SELECT 1 AS ok FROM tecnicos WHERE id = ? AND ativo = 1 AND senha_hash IS NOT NULL AND senha_hash != ''",
             s.tecnicoId
           )
-        : // O perfil precisa bater com a sessão: quem virou "Só Telão" perde o acesso total
+        : // O perfil precisa bater com a sessão: quem virou "Só Telão"/"Só Envios" perde o acesso total
           await dbGet<{ ok: number }>(
             "SELECT 1 AS ok FROM users WHERE id = ? AND COALESCE(ativo, 1) = 1 AND COALESCE(perfil, 'total') = ?",
             s.userId,
-            s.role === "telao" ? "telao" : "total"
+            perfilDoRole(s.role)
           );
     ativo = !!row;
   } catch (err) {

@@ -7,7 +7,11 @@ import { TEXTOS_APP, passosInstalar, plataforma, type Plataforma, type PublicoAp
 type EventoInstalar = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
 /** "Não mostrar mais" fica guardado por público (o técnico mantém a chave antiga). */
-const OCULTO: Record<PublicoApp, string> = { tecnico: "chronomax_instalar_oculto", telao: "chronomax_instalar_oculto_telao" };
+const OCULTO: Record<PublicoApp, string> = {
+  tecnico: "chronomax_instalar_oculto",
+  telao: "chronomax_instalar_oculto_telao",
+  envios: "chronomax_instalar_oculto_envios",
+};
 
 /** Plataforma, se já está aberto como app e a instalação de 1 toque (Chrome/Android). */
 export function useInstalacao() {

@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import InstalarApp from "../../(portal)/InstalarApp";
+import type { PublicoApp } from "@/lib/instalar-app";
 
 /**
- * Perfil Só Telão: card "Instale o app" no topo (some quando já é o app instalado ou
- * depois de "não mostrar mais") e, no fim da aba, o link para rever o passo a passo.
+ * Perfis Só Telão / Só Envios: card "Instale o app" no topo (some quando já é o app
+ * instalado ou depois de "não mostrar mais") e, no fim da aba, o link para rever o passo a passo.
  */
 export function CardInstalarTelao() {
   return <InstalarApp publico="telao" />;
 }
 
-export function ComoInstalarTelao() {
+export function ComoInstalarApp({ publico }: { publico: PublicoApp }) {
   const [aberto, setAberto] = useState(false);
   return (
     <div className="mt-6">
@@ -20,9 +21,13 @@ export function ComoInstalarTelao() {
       </button>
       {aberto && (
         <div className="mt-3">
-          <InstalarApp publico="telao" forcar />
+          <InstalarApp publico={publico} forcar />
         </div>
       )}
     </div>
   );
+}
+
+export function ComoInstalarTelao() {
+  return <ComoInstalarApp publico="telao" />;
 }

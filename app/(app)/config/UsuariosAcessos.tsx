@@ -14,7 +14,7 @@ const campo = "w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 
 
 /**
  * Configurações → Usuários e acessos:
- * - usuários do escritório: criar (acesso total ou Só Telão), trocar senha, mandar o link de
+ * - usuários do escritório: criar (acesso total, Só Telão ou Só Envios), trocar senha, mandar o link de
  *   senha (uso único, 24h), mudar o perfil, desativar/reativar;
  * - técnicos: definir/trocar senha do portal (só vê as provas dele) ou tirar o acesso.
  */
@@ -101,7 +101,7 @@ export default function UsuariosAcessos() {
       <div>
         <h2 className="text-lg font-semibold text-white">Usuários e acessos</h2>
         <p className="text-xs text-slate-400">
-          Usuário do escritório tem acesso total, ou só à aba Telão (perfil Só Telão). Para criar ou trocar a senha, mande o
+          Usuário do escritório tem acesso total, ou só à aba Telão (perfil Só Telão), ou só à aba Envios (perfil Só Envios). Para criar ou trocar a senha, mande o
           🔗 link de senha: vale 24h e funciona uma vez. Técnico entra pelo telefone e vê só as provas dele, com o material e o
           botão de confirmar o recebimento. Para o técnico, o mais fácil é mandar o 🔗 link de acesso: ele mesmo cria a
           senha.
@@ -167,6 +167,7 @@ export default function UsuariosAcessos() {
           >
             <option value="total">{ROTULO_PERFIL.total}</option>
             <option value="telao">{ROTULO_PERFIL.telao}</option>
+            <option value="envios">{ROTULO_PERFIL.envios}</option>
           </select>
           <button
             disabled={ocupado || !novo.name || !novo.username}
@@ -203,6 +204,7 @@ export default function UsuariosAcessos() {
                 >
                   <option value="total">{ROTULO_PERFIL.total}</option>
                   <option value="telao">{ROTULO_PERFIL.telao}</option>
+                  <option value="envios">{ROTULO_PERFIL.envios}</option>
                 </select>
                 <button onClick={() => { setSenhaDe({ tipo: "u", id: u.id, nome: u.name }); setNovaSenha(""); }} className="text-blue-400 hover:text-blue-300">
                   Trocar senha

@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/session";
 import Link from "next/link";
 import Sidebar from "./Sidebar";
+import { destinoDoRole, ehRoleRestrito } from "@/lib/perfil-usuario";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -12,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {session.senhaPadrao && (
           <div role="alert" className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200 print:hidden">
             Você entrou com a <strong>senha inicial</strong> do sistema.{" "}
-            <Link href={session.role === "telao" ? "/telao#minha-senha" : "/config#minha-senha"} className="underline hover:text-white">
+            <Link href={ehRoleRestrito(session.role) ? `${destinoDoRole(session.role)}#minha-senha` : "/config#minha-senha"} className="underline hover:text-white">
               Troque agora
             </Link>
             .

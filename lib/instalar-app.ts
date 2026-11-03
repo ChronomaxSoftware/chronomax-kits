@@ -1,11 +1,12 @@
 /** Instruções para fixar o sistema na tela inicial do celular (vira um "app"). */
 
-/** Quem vê o card: técnico (portal, entra pelo telefone) ou perfil Só Telão (entra pelo login). */
-export type PublicoApp = "tecnico" | "telao";
+/** Quem vê o card: técnico (portal, entra pelo telefone) ou perfil Só Telão / Só Envios (entra pelo login). */
+export type PublicoApp = "tecnico" | "telao" | "envios";
 
 export const TEXTOS_APP: Record<PublicoApp, { credencial: string; abre: string }> = {
   tecnico: { credencial: "seu telefone e senha", abre: "abre direto nas suas provas, sem precisar do link" },
   telao: { credencial: "seu login e senha", abre: "abre direto na aba Telão, sem precisar procurar o site" },
+  envios: { credencial: "seu login e senha", abre: "abre direto na aba Envios, sem precisar procurar o site" },
 };
 
 export type Plataforma = "ios-safari" | "ios-outro" | "android" | "outro";

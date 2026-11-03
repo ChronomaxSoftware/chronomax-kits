@@ -256,6 +256,24 @@ CREATE TABLE IF NOT EXISTS telao_status (
   obs_por TEXT
 );
 
+-- Aba Envios: provas cujo material + números alguém (ex.: o ajudante do Rio) manda para o
+-- técnico. A linha existir = a prova está na lista. endereco = endereço desta entrega
+-- (em branco usa o do cadastro do técnico). O sync não mexe.
+CREATE TABLE IF NOT EXISTS envio_status (
+  evento_id INTEGER PRIMARY KEY,
+  data_envio TEXT,
+  endereco TEXT,
+  material_em TEXT,
+  material_por TEXT,
+  numeros_em TEXT,
+  numeros_por TEXT,
+  obs TEXT,
+  obs_em TEXT,
+  obs_por TEXT,
+  criado_em TEXT,
+  criado_por TEXT
+);
+
 -- Alertas do escritório (sino): técnico confirmou recebimento/devolução do material
 CREATE TABLE IF NOT EXISTS alertas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -471,6 +489,8 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     ["users", "ativo", "ALTER TABLE users ADD COLUMN ativo INTEGER DEFAULT 1"],
     // Perfil do usuário do escritório: total (tudo) ou telao (só a aba Telão)
     ["users", "perfil", "ALTER TABLE users ADD COLUMN perfil TEXT DEFAULT 'total'"],
+    // Endereço do técnico (para onde vai o material na aba Envios)
+    ["tecnicos", "endereco", "ALTER TABLE tecnicos ADD COLUMN endereco TEXT"],
     // Tutorial do portal mostrado no primeiro acesso do técnico
     ["tecnicos", "tutorial_visto_em", "ALTER TABLE tecnicos ADD COLUMN tutorial_visto_em TEXT"],
     // Aviso "o app mudou" (nome/ícone novos) já confirmado pelo técnico
