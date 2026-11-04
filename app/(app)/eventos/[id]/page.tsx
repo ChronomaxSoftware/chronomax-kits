@@ -348,6 +348,12 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 />
               </div>
               <div className="col-span-2">
+                <label className="block text-xs text-slate-400 mb-1">
+                  Datas e horários da retirada <span className="text-slate-500">(o mesmo do 📘 Book — Local da retirada)</span>
+                </label>
+                <EditorDatasRetirada value={datasHorariosRetirada} onChange={setDatasHorariosRetirada} />
+              </div>
+              <div className="col-span-2">
                 <label className="block text-xs text-slate-400 mb-1">Status</label>
                 <select
                   value={status}

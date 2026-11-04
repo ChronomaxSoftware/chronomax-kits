@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chegadaPrimeiroDia, formatarDia, formatarLinhas, lerLinha, lerLinhas, textoChegada } from "./datas-retirada";
+import { chegadaPrimeiroDia, converterTextoColado, formatarDia, formatarLinhas, lerLinha, lerLinhas, textoChegada } from "./datas-retirada";
 
 describe("datas e horários da retirada", () => {
   it("monta a linha no formato do modelo", () => {
@@ -38,5 +38,29 @@ describe("datas e horários da retirada", () => {
     expect(chegadaPrimeiroDia("06/11/2026 das 1h às 5h")?.chegada).toBe("00h00");
     expect(chegadaPrimeiroDia("")).toBeNull();
     expect(chegadaPrimeiroDia("Só texto livre")).toBeNull();
+  });
+});
+
+describe("converterTextoColado", () => {
+  it("o modelo colado vira os dias do book", () => {
+    const l = converterTextoColado("DATAS E HORÁRIOS:\n\n06/11/2026 das 12h00 às 21h00\n07/11/2026 das 10h00 às 21h00\n");
+    expect(l).toEqual([
+      { data: "2026-11-06", inicio: "12:00", fim: "21:00" },
+      { data: "2026-11-07", inicio: "10:00", fim: "21:00" },
+    ]);
+    expect(formatarLinhas(l)).toBe("06/11/2026 das 12h00 às 21h00\n07/11/2026 das 10h00 às 21h00");
+  });
+
+  it("vários dias na mesma linha, com dia da semana (formato do Gestão)", () => {
+    const l = converterTextoColado(
+      "Datas e horários:  28/05 (quinta): 10h às 20h              29/05 (sexta): 10h às 20h  30/05 (sábado): 10h às 14h",
+      2026
+    );
+    expect(formatarLinhas(l)).toBe("28/05/2026 das 10h00 às 20h00\n29/05/2026 das 10h00 às 20h00\n30/05/2026 das 10h00 às 14h00");
+  });
+
+  it("o que não é data fica como texto", () => {
+    expect(converterTextoColado("Retirada só com documento")).toEqual([{ texto: "Retirada só com documento" }]);
+    expect(converterTextoColado("")).toEqual([]);
   });
 });
