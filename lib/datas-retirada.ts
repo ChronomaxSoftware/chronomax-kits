@@ -86,6 +86,19 @@ export function lerLinhas(texto: string | null | undefined, anoPadrao?: number):
     .map((l) => lerLinha(l, anoPadrao));
 }
 
+/**
+ * Texto colado (WhatsApp, e-mail, Gestão) → linhas de dias. Tira o título "Datas e horários:",
+ * separa vários dias que vieram na mesma linha e normaliza para o formato do book.
+ */
+export function converterTextoColado(texto: string, anoPadrao?: number): LinhaRetirada[] {
+  const limpo = String(texto || "")
+    .replace(/\r/g, "")
+    .replace(/datas?\s+e\s+hor[aá]rios?\s*:?/gi, "\n")
+    // cada data (dd/mm ou dd/mm/aaaa) começa um dia novo
+    .replace(/\s+(?=\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b)/g, "\n");
+  return lerLinhas(limpo, anoPadrao).map((l) => (ehDia(l) ? l : { texto: l.texto.replace(/\s+/g, " ") }));
+}
+
 export type Chegada = { data: string; dataRotulo: string; abertura: string; chegada: string; horasAntes: number };
 
 /** Chegada da equipe no 1º dia (o mais cedo com hora de início): abertura − horasAntes. */

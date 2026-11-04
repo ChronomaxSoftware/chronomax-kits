@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { chegadaPrimeiroDia, ehDia, formatarLinhas, lerLinhas, textoChegada, type LinhaRetirada } from "@/lib/datas-retirada";
+import {
+  chegadaPrimeiroDia,
+  converterTextoColado,
+  ehDia,
+  formatarLinhas,
+  lerLinhas,
+  textoChegada,
+  type LinhaRetirada,
+} from "@/lib/datas-retirada";
 
 const campo = "bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm";
 
@@ -11,6 +19,9 @@ const campo = "bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-
  */
 export default function EditorDatasRetirada({ value, onChange }: { value: string; onChange: (texto: string) => void }) {
   const [linhas, setLinhas] = useState<LinhaRetirada[]>(() => lerLinhas(value));
+  const [colando, setColando] = useState(false);
+  const [colado, setColado] = useState("");
+  const [avisoColar, setAvisoColar] = useState("");
 
   // valor carregado de fora (abrir a prova) → refaz as linhas; o que o próprio editor gerou não mexe
   useEffect(() => {
@@ -37,6 +48,23 @@ export default function EditorDatasRetirada({ value, onChange }: { value: string
       data = `${prox.getFullYear()}-${String(prox.getMonth() + 1).padStart(2, "0")}-${String(prox.getDate()).padStart(2, "0")}`;
     }
     mudar([...linhas, { data, inicio: ultimo?.inicio || "", fim: ultimo?.fim || "" }]);
+  }
+
+  function transformar() {
+    const novas = converterTextoColado(colado);
+    const dias = novas.filter(ehDia).length;
+    if (dias === 0) {
+      setAvisoColar("Não achei nenhuma data (dd/mm) no texto.");
+      return;
+    }
+    mudar(novas);
+    setColado("");
+    setColando(false);
+    const fora = novas.length - dias;
+    setAvisoColar(
+      `${dias} dia${dias > 1 ? "s" : ""} transformado${dias > 1 ? "s" : ""}.` +
+        (fora ? ` ${fora} linha${fora > 1 ? "s" : ""} sem data ficou como texto — confira.` : "")
+    );
   }
 
   const chegada = chegadaPrimeiroDia(formatarLinhas(linhas));
@@ -91,9 +119,46 @@ export default function EditorDatasRetirada({ value, onChange }: { value: string
           </button>
         </div>
       ))}
-      <button type="button" onClick={maisUmDia} className="text-xs text-blue-400 hover:text-blue-300">
-        + dia
-      </button>
+      <div className="flex flex-wrap gap-4">
+        <button type="button" onClick={maisUmDia} className="text-xs text-blue-400 hover:text-blue-300">
+          + dia
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setColando((v) => !v);
+            setAvisoColar("");
+          }}
+          className="text-xs text-blue-400 hover:text-blue-300"
+        >
+          📋 Colar datas e horários
+        </button>
+      </div>
+      {colando && (
+        <div className="rounded-lg border border-blue-500/40 bg-blue-500/5 p-2 space-y-2">
+          <textarea
+            value={colado}
+            onChange={(e) => setColado(e.target.value)}
+            rows={4}
+            autoFocus
+            aria-label="Texto com as datas e horários"
+            placeholder={"Cole aqui, do jeito que veio. Ex.:\nDATAS E HORÁRIOS:\n06/11/2026 das 12h00 às 21h00\n07/11/2026 das 10h00 às 21h00"}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+          />
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={transformar}
+              disabled={!colado.trim()}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded"
+            >
+              Transformar
+            </button>
+            <span className="text-[11px] text-slate-500">Substitui os dias acima.</span>
+          </div>
+        </div>
+      )}
+      {avisoColar && <p className="text-[11px] text-slate-300">{avisoColar}</p>}
       {chegada && <p className="text-xs text-amber-300">⏰ {textoChegada(chegada)}</p>}
     </div>
   );
