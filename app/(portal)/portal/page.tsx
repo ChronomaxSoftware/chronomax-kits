@@ -5,6 +5,7 @@ import InstalarApp from "../InstalarApp";
 import AvisoAtualizarApp from "../AvisoAtualizarApp";
 import LembreteConferencia from "../LembreteConferencia";
 import FotoAmpliada from "@/components/kits/FotoAmpliada";
+import { chegadaPrimeiroDia, lerLinhas, ehDia, formatarDia } from "@/lib/datas-retirada";
 
 type Produto = {
   id: number;
@@ -32,6 +33,8 @@ type EventoPortal = {
   equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null; status: string }[];
   /** Tipos de kit do book da prova (com foto) */
   kits: { id: number; nome: string; descricao: string | null; foto_url: string | null }[];
+  /** "Datas e horários" da retirada de kit (uma linha por dia) */
+  datas_horarios_retirada: string | null;
   finalizado: boolean;
   bloqueado: boolean;
   libera_em: string | null;
@@ -223,6 +226,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
         <p className="text-xs text-green-400 mt-1">✓ Você confirmou o recebimento em {dataHora(evento.confirmado_em)}</p>
       )}
 
+      <RetiradaKits texto={evento.datas_horarios_retirada} />
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
 
       <Aparelhos lista={evento.equipamentos} />
@@ -386,6 +390,31 @@ function CardFinalizado({ evento, onSalvo }: { evento: EventoPortal; onSalvo: ()
   );
 }
 
+/** Dias e horários da retirada de kit + chegada da equipe no 1º dia. */
+function RetiradaKits({ texto }: { texto: string | null }) {
+  const linhas = lerLinhas(texto);
+  if (linhas.length === 0) return null;
+  const chegada = chegadaPrimeiroDia(texto);
+  return (
+    <div className="mt-3 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
+      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">📅 Retirada de kits</p>
+      <ul className="text-sm text-slate-200 space-y-0.5">
+        {linhas.map((l, i) => (
+          <li key={i}>{ehDia(l) ? formatarDia(l) : l.texto}</li>
+        ))}
+      </ul>
+      {chegada && (
+        <p className="mt-2 text-sm font-semibold text-amber-300">
+          ⏰ Chegue às {chegada.chegada} no dia {chegada.dataRotulo}
+          <span className="block text-xs font-normal text-amber-200/80">
+            {chegada.horasAntes}h antes da abertura ({chegada.abertura}) do 1º dia
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** Tipos de kit da prova (book), com foto: toque para ampliar. */
 function TiposKit({ lista }: { lista: EventoPortal["kits"] }) {
   const [ampliada, setAmpliada] = useState<EventoPortal["kits"][number] | null>(null);
@@ -453,6 +482,7 @@ function CardEmBreve({ evento }: { evento: EventoPortal }) {
         </p>
       )}
 
+      <RetiradaKits texto={evento.datas_horarios_retirada} />
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
 
       <Aparelhos lista={evento.equipamentos} />
