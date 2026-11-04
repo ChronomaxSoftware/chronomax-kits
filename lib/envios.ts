@@ -128,3 +128,36 @@ export function agruparEnvios<T extends EnvioBase>(
   grupos.enviadas.sort((a, b) => String(b.data_envio).localeCompare(String(a.data_envio)));
   return grupos;
 }
+
+// ── Material para entregar ao técnico ──
+
+/** Quantidades do card "📘 Book — Equipamentos" da prova (eventos.qtd_*). */
+export type QtdBook = {
+  qtd_roteadores?: number | null;
+  qtd_celulares?: number | null;
+  qtd_celulares_grupo_online?: number | null;
+  qtd_celulares_produtos_online?: number | null;
+  qtd_totens?: number | null;
+  qtd_notebooks?: number | null;
+};
+
+const ROTULO_BOOK: [keyof QtdBook, string][] = [
+  ["qtd_celulares", "Celulares (número)"],
+  ["qtd_celulares_grupo_online", "Celular grupo online"],
+  ["qtd_celulares_produtos_online", "Celulares produtos online"],
+  ["qtd_roteadores", "Roteadores"],
+  ["qtd_totens", "Totens"],
+  ["qtd_notebooks", "Notebooks"],
+];
+
+/** Itens do book com quantidade > 0, na ordem do card. */
+export function itensBook(q: QtdBook): { nome: string; quantidade: number }[] {
+  return ROTULO_BOOK.map(([k, nome]) => ({ nome, quantidade: Math.max(0, Math.floor(Number(q[k]) || 0)) })).filter(
+    (x) => x.quantidade > 0
+  );
+}
+
+/** Já tem material separado no escritório (produtos com quantidade ou patrimônios)? */
+export function materialSeparado(m: { produtos: { quantidade: number }[]; equipamentos: unknown[] }): boolean {
+  return m.produtos.some((p) => Number(p.quantidade) > 0) || m.equipamentos.length > 0;
+}
