@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import InstalarApp from "../InstalarApp";
 import AvisoAtualizarApp from "../AvisoAtualizarApp";
 import LembreteConferencia from "../LembreteConferencia";
+import FotoAmpliada from "@/components/kits/FotoAmpliada";
 
 type Produto = {
   id: number;
@@ -29,6 +30,8 @@ type EventoPortal = {
   confirmado_em: string | null;
   produtos: Produto[];
   equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null; status: string }[];
+  /** Tipos de kit do book da prova (com foto) */
+  kits: { id: number; nome: string; descricao: string | null; foto_url: string | null }[];
   finalizado: boolean;
   bloqueado: boolean;
   libera_em: string | null;
@@ -223,6 +226,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
 
       <Aparelhos lista={evento.equipamentos} />
+      <TiposKit lista={evento.kits} />
 
       {total === 0 ? (
         <p className="text-sm text-slate-400 mt-3">Nenhum material cadastrado para este evento ainda.</p>
@@ -382,6 +386,34 @@ function CardFinalizado({ evento, onSalvo }: { evento: EventoPortal; onSalvo: ()
   );
 }
 
+/** Tipos de kit da prova (book), com foto: toque para ampliar. */
+function TiposKit({ lista }: { lista: EventoPortal["kits"] }) {
+  const [ampliada, setAmpliada] = useState<EventoPortal["kits"][number] | null>(null);
+  if (!lista || lista.length === 0) return null;
+  return (
+    <div className="mt-4">
+      <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">🎽 Tipos de kit</p>
+      <div className="grid grid-cols-2 gap-2">
+        {lista.map((k) => (
+          <div key={k.id} className="rounded-lg border border-slate-700 bg-slate-900 overflow-hidden">
+            {k.foto_url && (
+              <button type="button" onClick={() => setAmpliada(k)} className="block w-full" aria-label={`Ampliar foto do ${k.nome}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={k.foto_url} alt={k.nome} loading="lazy" className="w-full h-32 object-cover" />
+              </button>
+            )}
+            <div className="p-2">
+              <p className="text-sm font-semibold text-white leading-tight">{k.nome}</p>
+              {k.descricao && <p className="text-xs text-slate-400 mt-1 whitespace-pre-line">{k.descricao}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {ampliada?.foto_url && <FotoAmpliada kit={ampliada} onFechar={() => setAmpliada(null)} />}
+    </div>
+  );
+}
+
 /** Patrimônios separados para a prova. */
 function Aparelhos({ lista }: { lista: EventoPortal["equipamentos"] }) {
   if (lista.length === 0) return null;
@@ -424,6 +456,7 @@ function CardEmBreve({ evento }: { evento: EventoPortal }) {
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
 
       <Aparelhos lista={evento.equipamentos} />
+      <TiposKit lista={evento.kits} />
 
       <p className="text-xs text-slate-500 uppercase tracking-wide mt-4 mb-2">Material alocado</p>
       {evento.produtos.length === 0 ? (

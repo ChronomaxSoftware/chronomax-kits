@@ -1,34 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dbRun, dbGet, initDB } from "@/lib/db";
-import path from "path";
-import fs from "fs/promises";
+import { dbRun, initDB } from "@/lib/db";
+import { getSession } from "@/lib/session";
+import { DESCRICAO_KIT_MAX, NOME_KIT_MAX } from "@/lib/kits-foto";
 
+async function admin() {
+  const s = await getSession();
+  return s.isLoggedIn && s.role === "admin";
+}
+
+// PUT { nome?, descricao?, ordem? } — corrige o kit (a foto não muda aqui)
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string; kitId: string }> }) {
   await initDB();
-  const { kitId } = await params;
-  const body = await req.json();
+  if (!(await admin())) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  const { id, kitId } = await params;
+  const body = await req.json().catch(() => ({}));
   const updates: string[] = [];
   const values: unknown[] = [];
-  for (const c of ["nome", "descricao", "ordem"]) {
-    if (c in body) {
-      updates.push(`${c} = ?`);
-      values.push(body[c]);
-    }
+  if ("nome" in body) {
+    const nome = String(body.nome ?? "").trim().slice(0, NOME_KIT_MAX);
+    if (!nome) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
+    updates.push("nome = ?");
+    values.push(nome);
+  }
+  if ("descricao" in body) {
+    updates.push("descricao = ?");
+    values.push(String(body.descricao ?? "").trim().slice(0, DESCRICAO_KIT_MAX) || null);
+  }
+  if ("ordem" in body) {
+    updates.push("ordem = ?");
+    values.push(Number(body.ordem) || 0);
   }
   if (updates.length === 0) return NextResponse.json({ ok: true });
-  values.push(kitId);
-  await dbRun(`UPDATE evento_kits SET ${updates.join(", ")} WHERE id = ?`, ...values);
+  await dbRun(`UPDATE evento_kits SET ${updates.join(", ")} WHERE id = ? AND evento_id = ?`, ...values, kitId, id);
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string; kitId: string }> }) {
   await initDB();
-  const { kitId } = await params;
-  const row = await dbGet<{ imagem_path: string | null }>("SELECT imagem_path FROM evento_kits WHERE id = ?", kitId);
-  if (row?.imagem_path) {
-    const full = path.join(process.cwd(), "data", "uploads", row.imagem_path);
-    fs.unlink(full).catch(() => {});
-  }
-  await dbRun("DELETE FROM evento_kits WHERE id = ?", kitId);
+  if (!(await admin())) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  const { id, kitId } = await params;
+  await dbRun("DELETE FROM evento_kits WHERE id = ? AND evento_id = ?", kitId, id);
   return NextResponse.json({ ok: true });
 }

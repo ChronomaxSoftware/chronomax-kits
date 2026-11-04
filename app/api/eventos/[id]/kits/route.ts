@@ -1,48 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dbRun, dbGet, dbAll, initDB } from "@/lib/db";
-import path from "path";
-import fs from "fs/promises";
-import { existsSync, mkdirSync } from "fs";
+import { dbRun, dbGet, initDB } from "@/lib/db";
+import { getSession } from "@/lib/session";
+import { listarKits } from "@/lib/kits-foto-db";
+import { DESCRICAO_KIT_MAX, FOTO_KIT_MAX_BYTES, NOME_KIT_MAX, ehTipoFotoKit } from "@/lib/kits-foto";
 
 export const maxDuration = 60;
 
-function uploadDir(eventoId: string | number): string {
-  const dir = path.join(process.cwd(), "data", "uploads", "eventos", String(eventoId));
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  return dir;
+async function admin() {
+  const s = await getSession();
+  return s.isLoggedIn && s.role === "admin";
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
+  if (!(await admin())) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
-  const rows = await dbAll("SELECT id, evento_id, nome, descricao, imagem_path, ordem FROM evento_kits WHERE evento_id = ? ORDER BY ordem, id", id);
-  return NextResponse.json(rows);
+  return NextResponse.json(await listarKits([Number(id)], "escritorio"));
 }
 
+/** POST (multipart): nome, descricao?, imagem? — uma foto por pedido (limite de corpo da Vercel). */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
+  if (!(await admin())) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
   const evento = await dbGet("SELECT id FROM eventos WHERE id = ?", id);
   if (!evento) return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 });
 
   const form = await req.formData();
-  const nome = (form.get("nome") as string | null)?.trim();
-  const descricao = (form.get("descricao") as string | null)?.trim() || null;
-  const file = form.get("imagem") as File | null;
+  const nome = String(form.get("nome") ?? "").trim().slice(0, NOME_KIT_MAX);
+  const descricao = String(form.get("descricao") ?? "").trim().slice(0, DESCRICAO_KIT_MAX) || null;
+  const file = form.get("imagem");
 
   if (!nome) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
 
-  let imagemPath: string | null = null;
-  if (file && file.size > 0) {
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const buf = Buffer.from(await file.arrayBuffer());
-    await fs.writeFile(path.join(uploadDir(id), filename), buf);
-    imagemPath = `eventos/${id}/${filename}`;
+  let dados: Uint8Array | null = null;
+  let tipo: string | null = null;
+  if (file instanceof File && file.size > 0) {
+    if (!ehTipoFotoKit(file.type)) return NextResponse.json({ error: "A foto precisa ser JPG, PNG ou WEBP" }, { status: 400 });
+    if (file.size > FOTO_KIT_MAX_BYTES) return NextResponse.json({ error: "Foto grande demais (máx. 2 MB)" }, { status: 400 });
+    dados = new Uint8Array(await file.arrayBuffer());
+    tipo = file.type;
   }
 
-  const r = await dbRun("INSERT INTO evento_kits (evento_id, nome, descricao, imagem_path, ordem) VALUES (?, ?, ?, ?, ?)",
-    id, nome, descricao, imagemPath, 0);
+  const prox = await dbGet<{ n: number }>("SELECT COALESCE(MAX(ordem), 0) + 1 AS n FROM evento_kits WHERE evento_id = ?", id);
+  const r = await dbRun(
+    "INSERT INTO evento_kits (evento_id, nome, descricao, imagem_dados, imagem_tipo, ordem) VALUES (?, ?, ?, ?, ?, ?)",
+    id,
+    nome,
+    descricao,
+    dados,
+    tipo,
+    Number(prox?.n ?? 1)
+  );
 
   return NextResponse.json({ id: r.lastInsertRowid });
 }

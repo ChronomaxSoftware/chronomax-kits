@@ -3,6 +3,7 @@ import { dbAll, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { formatBR, parseDataBR } from "@/lib/semana";
 import { liberaEm, podeDevolver, situacaoProva } from "@/lib/portal-situacao";
+import { listarKits } from "@/lib/kits-foto-db";
 
 /** Histórico: provas de até 30 dias atrás aparecem como "Finalizado" (só leitura). */
 const DIAS_PASSADOS = 30;
@@ -64,6 +65,9 @@ export async function GET() {
       };
     });
 
+  // Tipos de kit (fotos do book) de todas as provas de uma vez; a foto vem de /api/portal/kits/…
+  const kits = await listarKits(eventos.map((e) => e.id), "portal");
+
   const result = [];
   for (const ev of eventos) {
     const produtos = await dbAll(
@@ -78,7 +82,12 @@ export async function GET() {
        WHERE evento_id = ? ORDER BY tipo, patrimonio`,
       ev.id
     );
-    result.push({ ...ev, produtos, equipamentos });
+    result.push({
+      ...ev,
+      produtos,
+      equipamentos,
+      kits: kits.filter((k) => k.evento_id === ev.id).map(({ id, nome, descricao, foto_url }) => ({ id, nome, descricao, foto_url })),
+    });
   }
 
   return NextResponse.json(result);
