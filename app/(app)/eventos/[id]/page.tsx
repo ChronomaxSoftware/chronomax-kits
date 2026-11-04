@@ -510,6 +510,7 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
           </Card>
 
           <CardKitsProva eventoId={Number(id)} />
+          <CardKitsProva eventoId={Number(id)} categoria="numero" />
 
           <Card titulo="📘 Book — Links">
             <div className="space-y-3">

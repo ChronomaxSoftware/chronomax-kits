@@ -499,6 +499,8 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     // Tipos de kit: a foto fica no banco (o disco da Vercel não guarda arquivo)
     ["evento_kits", "imagem_dados", "ALTER TABLE evento_kits ADD COLUMN imagem_dados BLOB"],
     ["evento_kits", "imagem_tipo", "ALTER TABLE evento_kits ADD COLUMN imagem_tipo TEXT"],
+    // Mesma tabela para as fotos dos números de peito: categoria "kit" (padrão) ou "numero"
+    ["evento_kits", "categoria", "ALTER TABLE evento_kits ADD COLUMN categoria TEXT DEFAULT 'kit'"],
     // Tutorial do portal mostrado no primeiro acesso do técnico
     ["tecnicos", "tutorial_visto_em", "ALTER TABLE tecnicos ADD COLUMN tutorial_visto_em TEXT"],
     // Aviso "o app mudou" (nome/ícone novos) já confirmado pelo técnico

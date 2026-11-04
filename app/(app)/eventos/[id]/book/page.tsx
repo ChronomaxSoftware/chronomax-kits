@@ -7,7 +7,7 @@ import { chegadaPrimeiroDia, textoChegada } from "@/lib/datas-retirada";
 
 type Tecnico = { id: number; nome: string; telefone: string | null };
 type Produto = { id: number; nome: string; quantidade: number };
-type Kit = { id: number; nome: string; descricao: string | null; foto_url: string | null };
+type Kit = { id: number; nome: string; descricao: string | null; foto_url: string | null; categoria?: string };
 
 type Evento = {
   id: number;
@@ -217,6 +217,9 @@ export default function BookEventoPage({ params }: { params: Promise<{ id: strin
   const chegada = chegadaPrimeiroDia(evento.datas_horarios_retirada);
   const cronograma = linhasNaoVazias(evento.cronograma_evento);
   const passos = linhasNaoVazias(evento.passo_a_passo_kits);
+  // mesma lista: tipos de kit e fotos dos números de peito
+  const tiposKit = kits.filter((k) => (k.categoria || "kit") === "kit");
+  const numerosPeito = kits.filter((k) => k.categoria === "numero");
 
   type EquipItem = { qtd: number; label: string };
   const equipamentos: EquipItem[] = [
@@ -468,7 +471,7 @@ export default function BookEventoPage({ params }: { params: Promise<{ id: strin
       )}
 
       {/* PÁGINA TIPO DE KITS */}
-      {kits.length > 0 && (
+      {tiposKit.length > 0 && (
         <section className="book-page">
           <span className="pagina-num">3</span>
           <div className="header-barra">
@@ -476,7 +479,33 @@ export default function BookEventoPage({ params }: { params: Promise<{ id: strin
             <h3>Tipo de kits</h3>
           </div>
           <div className="grid grid-cols-2 gap-4 mt-6">
-            {kits.map((k) => (
+            {tiposKit.map((k) => (
+              <div key={k.id} className="bg-orange-700/30 border border-orange-600/50 rounded-lg overflow-hidden">
+                {k.foto_url && <img src={k.foto_url} alt={k.nome} className="w-full h-56 object-cover" />}
+                <div className="p-4">
+                  <p className="text-white font-bold text-center mb-2">{k.nome}</p>
+                  {k.descricao && <p className="text-xs text-slate-100 text-center">{k.descricao}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <span className="logo-rodape">
+            <img src="/logo-chronomax.jpg" alt="" />
+            <span><span className="azul">C</span>HRONO<span className="azul">MAX</span>®</span>
+          </span>
+        </section>
+      )}
+
+      {/* PÁGINA NÚMEROS DE PEITO */}
+      {numerosPeito.length > 0 && (
+        <section className="book-page">
+          <span className="pagina-num">3</span>
+          <div className="header-barra">
+            <div className="barra"></div>
+            <h3>Números de peito</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-6">
+            {numerosPeito.map((k) => (
               <div key={k.id} className="bg-orange-700/30 border border-orange-600/50 rounded-lg overflow-hidden">
                 {k.foto_url && <img src={k.foto_url} alt={k.nome} className="w-full h-56 object-cover" />}
                 <div className="p-4">

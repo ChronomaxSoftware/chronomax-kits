@@ -87,7 +87,7 @@ export async function GET() {
       ...ev,
       produtos,
       equipamentos,
-      kits: kits.filter((k) => k.evento_id === ev.id).map(({ id, nome, descricao, foto_url }) => ({ id, nome, descricao, foto_url })),
+      kits: kits.filter((k) => k.evento_id === ev.id).map(({ id, nome, descricao, foto_url, categoria }) => ({ id, nome, descricao, foto_url, categoria })),
     });
   }
 

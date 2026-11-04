@@ -10,6 +10,13 @@ export const TIPOS_FOTO_KIT = ["image/jpeg", "image/png", "image/webp"] as const
 export const NOME_KIT_MAX = 120;
 export const DESCRICAO_KIT_MAX = 1000;
 
+/** "kit" = card Tipos de Kit; "numero" = card Números de peito (mesma tabela evento_kits). */
+export type CategoriaFoto = "kit" | "numero";
+
+export function lerCategoriaFoto(x: unknown): CategoriaFoto {
+  return x === "numero" ? "numero" : "kit";
+}
+
 export function ehTipoFotoKit(t: unknown): t is (typeof TIPOS_FOTO_KIT)[number] {
   return typeof t === "string" && (TIPOS_FOTO_KIT as readonly string[]).includes(t);
 }
