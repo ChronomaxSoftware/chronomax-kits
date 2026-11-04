@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { dbAll, dbGet } from "./db";
+import type { CategoriaFoto } from "./kits-foto";
 
 export type KitProva = {
   id: number;
@@ -7,6 +8,7 @@ export type KitProva = {
   nome: string;
   descricao: string | null;
   ordem: number | null;
+  categoria: CategoriaFoto;
   /** Endereço da foto (null = kit sem foto). */
   foto_url: string | null;
 };
@@ -17,13 +19,20 @@ type Linha = Omit<KitProva, "foto_url"> & { tem_foto: number; imagem_path: strin
  * Kits da prova sem carregar a foto em si. `para` define de qual rota a foto vem:
  * escritório (/api/eventos/…) ou técnico (/api/portal/…, que confere a escala).
  */
-export async function listarKits(eventoIds: number[], para: "escritorio" | "portal"): Promise<KitProva[]> {
+export async function listarKits(
+  eventoIds: number[],
+  para: "escritorio" | "portal",
+  categoria?: CategoriaFoto
+): Promise<KitProva[]> {
   if (eventoIds.length === 0) return [];
   const linhas = await dbAll<Linha>(
-    `SELECT id, evento_id, nome, descricao, ordem, imagem_path, (imagem_dados IS NOT NULL) AS tem_foto
+    `SELECT id, evento_id, nome, descricao, ordem, COALESCE(categoria, 'kit') AS categoria, imagem_path,
+            (imagem_dados IS NOT NULL) AS tem_foto
      FROM evento_kits WHERE evento_id IN (${eventoIds.map(() => "?").join(",")})
+     ${categoria ? "AND COALESCE(categoria, 'kit') = ?" : ""}
      ORDER BY evento_id, ordem, id`,
-    ...eventoIds
+    ...eventoIds,
+    ...(categoria ? [categoria] : [])
   );
   return linhas.map(({ tem_foto, imagem_path, ...k }) => ({
     ...k,

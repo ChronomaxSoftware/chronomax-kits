@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbRun, dbGet, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { listarKits } from "@/lib/kits-foto-db";
-import { DESCRICAO_KIT_MAX, FOTO_KIT_MAX_BYTES, NOME_KIT_MAX, ehTipoFotoKit } from "@/lib/kits-foto";
+import { DESCRICAO_KIT_MAX, FOTO_KIT_MAX_BYTES, NOME_KIT_MAX, ehTipoFotoKit, lerCategoriaFoto } from "@/lib/kits-foto";
 
 export const maxDuration = 60;
 
@@ -11,14 +11,16 @@ async function admin() {
   return s.isLoggedIn && s.role === "admin";
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// GET ?categoria=kit|numero (sem = todas, ex.: o book separa as duas)
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
   if (!(await admin())) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   const { id } = await params;
-  return NextResponse.json(await listarKits([Number(id)], "escritorio"));
+  const c = req.nextUrl.searchParams.get("categoria");
+  return NextResponse.json(await listarKits([Number(id)], "escritorio", c ? lerCategoriaFoto(c) : undefined));
 }
 
-/** POST (multipart): nome, descricao?, imagem? — uma foto por pedido (limite de corpo da Vercel). */
+/** POST (multipart): nome, descricao?, imagem?, categoria? (kit|numero) — uma foto por pedido (limite de corpo da Vercel). */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
   if (!(await admin())) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -30,6 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const nome = String(form.get("nome") ?? "").trim().slice(0, NOME_KIT_MAX);
   const descricao = String(form.get("descricao") ?? "").trim().slice(0, DESCRICAO_KIT_MAX) || null;
   const file = form.get("imagem");
+  const categoria = lerCategoriaFoto(form.get("categoria"));
 
   if (!nome) return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 });
 
@@ -42,15 +45,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     tipo = file.type;
   }
 
-  const prox = await dbGet<{ n: number }>("SELECT COALESCE(MAX(ordem), 0) + 1 AS n FROM evento_kits WHERE evento_id = ?", id);
+  const prox = await dbGet<{ n: number }>(
+    "SELECT COALESCE(MAX(ordem), 0) + 1 AS n FROM evento_kits WHERE evento_id = ? AND COALESCE(categoria, 'kit') = ?",
+    id,
+    categoria
+  );
   const r = await dbRun(
-    "INSERT INTO evento_kits (evento_id, nome, descricao, imagem_dados, imagem_tipo, ordem) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO evento_kits (evento_id, nome, descricao, imagem_dados, imagem_tipo, ordem, categoria) VALUES (?, ?, ?, ?, ?, ?, ?)",
     id,
     nome,
     descricao,
     dados,
     tipo,
-    Number(prox?.n ?? 1)
+    Number(prox?.n ?? 1),
+    categoria
   );
 
   return NextResponse.json({ id: r.lastInsertRowid });

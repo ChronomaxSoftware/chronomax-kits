@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DESCRICAO_KIT_MAX, NOME_KIT_MAX, nomeKitDoArquivo } from "@/lib/kits-foto";
+import { DESCRICAO_KIT_MAX, NOME_KIT_MAX, nomeKitDoArquivo, type CategoriaFoto } from "@/lib/kits-foto";
 import FotoAmpliada from "./FotoAmpliada";
 
 type Kit = { id: number; nome: string; descricao: string | null; foto_url: string | null };
@@ -42,7 +42,30 @@ async function reduzirFoto(arquivo: File): Promise<Blob> {
  * kit vem do nome do arquivo (editável antes de salvar). Os kits aparecem no book da
  * prova e no portal do técnico.
  */
-export default function CardKitsProva({ eventoId }: { eventoId: number }) {
+/** Textos do card por categoria (o comportamento é o mesmo). */
+const TEXTOS: Record<CategoriaFoto, { titulo: string; botao: string; exemplo: string; nomeExemplo: string; item: string; placeholderNome: string; placeholderDescricao: string }> = {
+  kit: {
+    titulo: "📘 Book — Tipos de Kit (com fotos)",
+    botao: "📷 Selecionar fotos dos kits",
+    exemplo: "KIT-PREMIUM.jpg",
+    nomeExemplo: "KIT PREMIUM",
+    item: "kit",
+    placeholderNome: "Nome do kit (ex: INSCRIÇÃO ESSENCIAL)",
+    placeholderDescricao: "Descrição (ex: Camiseta Runner + Número de peito (chip) + Medalha conclusão...)",
+  },
+  numero: {
+    titulo: "📘 Book — Números de peito (com fotos)",
+    botao: "📷 Selecionar fotos dos números",
+    exemplo: "NUMERO-10K.jpg",
+    nomeExemplo: "NUMERO 10K",
+    item: "número",
+    placeholderNome: "Nome (ex: NÚMERO 10K, NÚMERO KIDS)",
+    placeholderDescricao: "Descrição (ex: faixa de numeração 1 a 2000, cor, chip no verso...)",
+  },
+};
+
+export default function CardKitsProva({ eventoId, categoria = "kit" }: { eventoId: number; categoria?: CategoriaFoto }) {
+  const t = TEXTOS[categoria];
   const [kits, setKits] = useState<Kit[]>([]);
   const [rascunhos, setRascunhos] = useState<Rascunho[]>([]);
   const [salvando, setSalvando] = useState<{ feitos: number; total: number } | null>(null);
@@ -53,14 +76,14 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
   const inputFotos = useRef<HTMLInputElement>(null);
 
   async function carregar() {
-    const r = await fetch(`/api/eventos/${eventoId}/kits`);
+    const r = await fetch(`/api/eventos/${eventoId}/kits?categoria=${categoria}`);
     if (r.ok) setKits(await r.json());
   }
 
   useEffect(() => {
     carregar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventoId]);
+  }, [eventoId, categoria]);
 
   // libera as prévias da memória quando o card sai da tela
   const rascunhosRef = useRef(rascunhos);
@@ -98,6 +121,7 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
   async function enviarKit(nome: string, descricao: string, foto?: Blob, nomeArquivo?: string) {
     const fd = new FormData();
     fd.append("nome", nome.trim());
+    fd.append("categoria", categoria);
     if (descricao.trim()) fd.append("descricao", descricao.trim());
     if (foto) fd.append("imagem", foto, nomeArquivo || "kit.jpg");
     const r = await fetch(`/api/eventos/${eventoId}/kits`, { method: "POST", body: fd });
@@ -107,7 +131,7 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
   async function salvarTodos() {
     const semNome = rascunhos.filter((x) => !x.nome.trim());
     if (semNome.length) {
-      setRascunhos((r) => r.map((x) => (x.nome.trim() ? x : { ...x, erro: "Dê um nome ao kit" })));
+      setRascunhos((r) => r.map((x) => (x.nome.trim() ? x : { ...x, erro: `Dê um nome ao ${t.item}` })));
       setMsg({ tipo: "erro", texto: `Falta o nome em ${semNome.length} foto${semNome.length > 1 ? "s" : ""}.` });
       return;
     }
@@ -132,7 +156,7 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
     setMsg(
       falhas
         ? { tipo: "erro", texto: `${ok} salvo${ok === 1 ? "" : "s"}; ${falhas} com erro (veja abaixo).` }
-        : { tipo: "ok", texto: `${ok} kit${ok === 1 ? "" : "s"} salvo${ok === 1 ? "" : "s"}.` }
+        : { tipo: "ok", texto: `${ok} ${ok === 1 ? "foto salva" : "fotos salvas"}.` }
     );
   }
 
@@ -162,14 +186,14 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
   }
 
   async function remover(id: number) {
-    if (!confirm("Remover este kit?")) return;
+    if (!confirm(`Remover este ${t.item}?`)) return;
     await fetch(`/api/eventos/${eventoId}/kits/${id}`, { method: "DELETE" });
     await carregar();
   }
 
   return (
     <div className="bg-slate-800 rounded-xl p-4">
-      <h2 className="font-bold mb-3 text-white">📘 Book — Tipos de Kit (com fotos)</h2>
+      <h2 className="font-bold mb-3 text-white">{t.titulo}</h2>
 
       {/* Várias fotos de uma vez */}
       <div className="mb-3">
@@ -180,17 +204,17 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
           multiple
           onChange={(e) => escolher(e.target.files)}
           className="hidden"
-          id={`fotos-kit-${eventoId}`}
+          id={`fotos-${categoria}-${eventoId}`}
         />
         <label
-          htmlFor={`fotos-kit-${eventoId}`}
+          htmlFor={`fotos-${categoria}-${eventoId}`}
           className="inline-block cursor-pointer bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg"
         >
-          📷 Selecionar fotos dos kits
+          {t.botao}
         </label>
         <p className="text-xs text-slate-500 mt-1">
-          Pode escolher várias. O nome do kit vem do nome do arquivo (ex.: <em>KIT-PREMIUM.jpg</em> → KIT PREMIUM) — confira
-          antes de salvar.
+          Pode escolher várias. O nome vem do nome do arquivo (ex.: <em>{t.exemplo}</em> → {t.nomeExemplo}) — confira antes
+          de salvar.
         </p>
       </div>
 
@@ -208,8 +232,8 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
                   value={x.nome}
                   onChange={(e) => mudar(x.chave, "nome", e.target.value)}
                   maxLength={NOME_KIT_MAX}
-                  placeholder="Nome do kit"
-                  aria-label={`Nome do kit (${x.arquivo.name})`}
+                  placeholder={`Nome do ${t.item}`}
+                  aria-label={`Nome do ${t.item} (${x.arquivo.name})`}
                   className={`${campo} ${x.erro && !x.nome.trim() ? "border-red-500" : ""}`}
                 />
                 <textarea
@@ -255,7 +279,7 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
       )}
 
       {kits.length === 0 ? (
-        <p className="text-xs text-slate-400 mb-3">Nenhum kit cadastrado ainda</p>
+        <p className="text-xs text-slate-400 mb-3">Nenhum {t.item} cadastrado ainda</p>
       ) : (
         <div className="grid grid-cols-2 gap-2 mb-3">
           {kits.map((k) =>
@@ -326,13 +350,13 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
 
       {/* Kit sem foto */}
       <details className="text-sm">
-        <summary className="cursor-pointer text-xs text-slate-400 hover:text-white">+ Adicionar kit sem foto</summary>
+        <summary className="cursor-pointer text-xs text-slate-400 hover:text-white">+ Adicionar {t.item} sem foto</summary>
         <form onSubmit={adicionarSemFoto} className="space-y-2 mt-2">
           <input
             value={semFoto.nome}
             onChange={(e) => setSemFoto({ ...semFoto, nome: e.target.value })}
             maxLength={NOME_KIT_MAX}
-            placeholder="Nome do kit (ex: INSCRIÇÃO ESSENCIAL)"
+            placeholder={t.placeholderNome}
             className={campo}
           />
           <textarea
@@ -340,7 +364,7 @@ export default function CardKitsProva({ eventoId }: { eventoId: number }) {
             onChange={(e) => setSemFoto({ ...semFoto, descricao: e.target.value })}
             maxLength={DESCRICAO_KIT_MAX}
             rows={2}
-            placeholder="Descrição (ex: Camiseta Runner + Número de peito (chip) + Medalha conclusão...)"
+            placeholder={t.placeholderDescricao}
             className={campo}
           />
           <button

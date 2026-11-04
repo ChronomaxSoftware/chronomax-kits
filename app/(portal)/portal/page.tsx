@@ -32,7 +32,7 @@ type EventoPortal = {
   produtos: Produto[];
   equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null; status: string }[];
   /** Tipos de kit do book da prova (com foto) */
-  kits: { id: number; nome: string; descricao: string | null; foto_url: string | null }[];
+  kits: { id: number; nome: string; descricao: string | null; foto_url: string | null; categoria?: string }[];
   /** "Datas e horários" da retirada de kit (uma linha por dia) */
   datas_horarios_retirada: string | null;
   finalizado: boolean;
@@ -230,7 +230,8 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
 
       <Aparelhos lista={evento.equipamentos} />
-      <TiposKit lista={evento.kits} />
+      <TiposKit titulo="🎽 Tipos de kit" lista={evento.kits.filter((k) => (k.categoria || "kit") === "kit")} />
+      <TiposKit titulo="🔢 Números de peito" lista={evento.kits.filter((k) => k.categoria === "numero")} />
 
       {total === 0 ? (
         <p className="text-sm text-slate-400 mt-3">Nenhum material cadastrado para este evento ainda.</p>
@@ -415,13 +416,13 @@ function RetiradaKits({ texto }: { texto: string | null }) {
   );
 }
 
-/** Tipos de kit da prova (book), com foto: toque para ampliar. */
-function TiposKit({ lista }: { lista: EventoPortal["kits"] }) {
+/** Fotos do book da prova (tipos de kit ou números de peito): toque para ampliar. */
+function TiposKit({ titulo, lista }: { titulo: string; lista: EventoPortal["kits"] }) {
   const [ampliada, setAmpliada] = useState<EventoPortal["kits"][number] | null>(null);
   if (!lista || lista.length === 0) return null;
   return (
     <div className="mt-4">
-      <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">🎽 Tipos de kit</p>
+      <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">{titulo}</p>
       <div className="grid grid-cols-2 gap-2">
         {lista.map((k) => (
           <div key={k.id} className="rounded-lg border border-slate-700 bg-slate-900 overflow-hidden">
@@ -486,7 +487,8 @@ function CardEmBreve({ evento }: { evento: EventoPortal }) {
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
 
       <Aparelhos lista={evento.equipamentos} />
-      <TiposKit lista={evento.kits} />
+      <TiposKit titulo="🎽 Tipos de kit" lista={evento.kits.filter((k) => (k.categoria || "kit") === "kit")} />
+      <TiposKit titulo="🔢 Números de peito" lista={evento.kits.filter((k) => k.categoria === "numero")} />
 
       <p className="text-xs text-slate-500 uppercase tracking-wide mt-4 mb-2">Material alocado</p>
       {evento.produtos.length === 0 ? (
