@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { dbAll, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { enderecoEntrega, itensBook, type QtdBook } from "@/lib/envios";
+import { enderecoEntrega } from "@/lib/envios";
+import { equipamentosBook, itensEquipamentosBook } from "@/lib/book-equipamentos";
 
-type Linha = QtdBook & {
+type Linha = {
+  qtd_celulares_grupo_online: number | null;
+  qtd_celulares_produtos_online: number | null;
   id: number;
   numero: string;
   nome: string;
@@ -53,8 +56,7 @@ export async function GET() {
   }
   const provas = await dbAll<Linha>(
     `SELECT e.id, e.numero, e.nome, e.data, e.cidade, e.uf, e.local_prova,
-            e.qtd_celulares, e.qtd_celulares_grupo_online, e.qtd_celulares_produtos_online,
-            e.qtd_roteadores, e.qtd_totens, e.qtd_notebooks,
+            e.qtd_celulares_grupo_online, e.qtd_celulares_produtos_online,
             v.data_envio, v.endereco, v.material_em, v.material_por, v.numeros_em, v.numeros_por,
             v.devolvido_em, v.devolvido_por,
             v.obs, v.obs_em, v.obs_por
@@ -85,32 +87,18 @@ export async function GET() {
     ),
   ]);
 
-  const result = provas.map(
-    ({
-      qtd_celulares,
-      qtd_celulares_grupo_online,
-      qtd_celulares_produtos_online,
-      qtd_roteadores,
-      qtd_totens,
-      qtd_notebooks,
-      ...p
-    }) => ({
+  const result = provas.map(({ qtd_celulares_grupo_online, qtd_celulares_produtos_online, ...p }) => {
+    const produtos = prods.filter((x) => x.evento_id === p.id).map(semEvento);
+    return {
       ...p,
-      // Quantidades do card "📘 Book — Equipamentos" (só as preenchidas)
-      book: itensBook({
-        qtd_celulares,
-        qtd_celulares_grupo_online,
-        qtd_celulares_produtos_online,
-        qtd_roteadores,
-        qtd_totens,
-        qtd_notebooks,
-      }),
+      // "📘 Book — Equipamentos": calculado do Produtos (o mesmo que o book mostra)
+      book: itensEquipamentosBook(equipamentosBook(produtos, { qtd_celulares_grupo_online, qtd_celulares_produtos_online })),
       tecnicos: tecs
         .filter((t) => t.evento_id === p.id)
         .map((t) => ({ ...semEvento(t), endereco_entrega: enderecoEntrega(p.endereco, t.endereco) })),
-      produtos: prods.filter((x) => x.evento_id === p.id).map(semEvento),
+      produtos,
       equipamentos: equips.filter((x) => x.evento_id === p.id).map(semEvento),
-    }),
-  );
+    };
+  });
   return NextResponse.json(result);
 }

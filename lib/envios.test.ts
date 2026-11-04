@@ -3,7 +3,6 @@ import {
   agruparEnvios,
   ehEtapaEnvio,
   enderecoEntrega,
-  itensBook,
   linkMapa,
   materialSeparado,
   normalizarDataEnvio,
@@ -93,14 +92,6 @@ describe("agruparEnvios", () => {
 });
 
 describe("material do envio", () => {
-  it("book: só o que tem quantidade, na ordem do card", () => {
-    expect(itensBook({ qtd_roteadores: 2, qtd_celulares: 8, qtd_totens: 0, qtd_notebooks: null })).toEqual([
-      { nome: "Celulares (número)", quantidade: 8 },
-      { nome: "Roteadores", quantidade: 2 },
-    ]);
-    expect(itensBook({})).toEqual([]);
-  });
-
   it("separado = produto com quantidade ou patrimônio", () => {
     expect(materialSeparado({ produtos: [], equipamentos: [] })).toBe(false);
     expect(materialSeparado({ produtos: [{ quantidade: 0 }], equipamentos: [] })).toBe(false);
