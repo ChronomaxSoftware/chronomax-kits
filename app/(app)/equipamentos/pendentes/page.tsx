@@ -9,7 +9,16 @@ import { Aviso, Indicador } from "@/components/equipamentos/ui";
 
 type Pendente = ItemEmCampo & { evento_id: number | null; evento_data: string | null; evento_numero: string | null };
 
-type Grupo = { chave: string; eventoId: number | null; titulo: string; data: string | null; atrasada: boolean; itens: Pendente[] };
+/** Uma prova = um card: aparelhos com patrimônio + demais materiais (por quantidade). */
+type Grupo = {
+  chave: string;
+  eventoId: number | null;
+  titulo: string;
+  data: string | null;
+  atrasada: boolean;
+  aparelhos: Pendente[];
+  acessorios: ProvaAcessoriosTela | null;
+};
 
 export default function PendentesPage() {
   const [lista, setLista] = useState<Pendente[] | null>(null);
@@ -32,7 +41,7 @@ export default function PendentesPage() {
     carregar();
   }, [carregar]);
 
-  // Agrupa por prova; prova que já passou (ou foi removida) com aparelho fora = atrasada
+  // Agrupa tudo por prova; prova que já passou (ou foi removida) com material fora = atrasada
   const grupos = useMemo<Grupo[]>(() => {
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -47,39 +56,74 @@ export default function PendentesPage() {
           titulo: p.evento_ref || "Prova removida",
           data: p.evento_data,
           atrasada: !p.evento_id || (d !== null && d < hoje),
-          itens: [],
+          aparelhos: [],
+          acessorios: null,
         });
       }
-      mapa.get(chave)!.itens.push(p);
+      mapa.get(chave)!.aparelhos.push(p);
     }
-    return [...mapa.values()].sort((a, b) => Number(b.atrasada) - Number(a.atrasada));
-  }, [lista]);
+    for (const a of acessorios) {
+      const chave = `ev-${a.evento_id}`;
+      const g = mapa.get(chave);
+      if (g) {
+        g.acessorios = a;
+        g.atrasada = g.atrasada || a.atrasada;
+      } else {
+        mapa.set(chave, {
+          chave,
+          eventoId: a.evento_id,
+          titulo: `#${a.numero} · ${a.nome}`,
+          data: a.data,
+          atrasada: a.atrasada,
+          aparelhos: [],
+          acessorios: a,
+        });
+      }
+    }
+    return [...mapa.values()].sort(
+      (a, b) =>
+        Number(b.atrasada) - Number(a.atrasada) ||
+        (parseDataBR(a.data)?.getTime() ?? 0) - (parseDataBR(b.data)?.getTime() ?? 0)
+    );
+  }, [lista, acessorios]);
 
   if (lista === null && !erro) return <p className="text-slate-400">Carregando…</p>;
 
-  const atrasados = grupos.filter((g) => g.atrasada).reduce((s, g) => s + g.itens.length, 0);
+  const totalAparelhos = lista?.length ?? 0;
+  const totalMateriais = acessorios.reduce((s, a) => s + a.itens.reduce((t, i) => t + i.quantidade, 0), 0);
+  const provasAtrasadas = grupos.filter((g) => g.atrasada).length;
+
+  const concluir = async (msg: string) => {
+    setOk(msg);
+    await carregar();
+  };
 
   return (
     <div className="space-y-6">
       <p className="text-slate-400 text-sm">
-        Aparelhos que <strong className="text-slate-300">saíram para uma prova e ainda não tiveram o retorno registrado</strong>.
-        Confira o que voltou e dê entrada — o que não for marcado continua aqui.
+        Tudo que <strong className="text-slate-300">saiu para uma prova e ainda não teve o retorno registrado</strong>: aparelhos
+        com patrimônio e os demais materiais (carregador, extensão, régua, mouse, equipamento sem patrimônio…). Confira o que
+        voltou e dê entrada — o que não for registrado continua aqui.
       </p>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        <Indicador titulo="Em campo" valor={lista?.length ?? 0} cor="text-sky-300" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Indicador titulo="Provas com pendência" valor={grupos.length} />
-        <Indicador titulo="De provas que já passaram" valor={atrasados} cor={atrasados ? "text-amber-300" : "text-white"} />
+        <Indicador titulo="Aparelhos com patrimônio" valor={totalAparelhos} cor="text-sky-300" />
+        <Indicador titulo="Demais materiais (itens)" valor={totalMateriais} cor="text-sky-300" />
+        <Indicador titulo="Provas que já passaram" valor={provasAtrasadas} cor={provasAtrasadas ? "text-amber-300" : "text-white"} />
       </div>
 
       {erro && <Aviso tipo="erro" texto={erro} onFechar={() => setErro("")} />}
       {ok && <Aviso tipo="ok" texto={ok} onFechar={() => setOk("")} />}
 
       {grupos.length === 0 ? (
-        <div className="bg-slate-800 rounded-xl p-6 text-sm text-slate-400">✓ Nenhum equipamento pendente de retorno.</div>
+        <div className="bg-slate-800 rounded-xl p-6 text-sm text-slate-400">✓ Nenhum material pendente de retorno.</div>
       ) : (
         grupos.map((g) => (
-          <section key={g.chave} className={`bg-slate-800 rounded-xl overflow-hidden border ${g.atrasada ? "border-amber-500/40" : "border-transparent"}`}>
+          <section
+            key={g.chave}
+            className={`bg-slate-800 rounded-xl overflow-hidden border ${g.atrasada ? "border-amber-500/40" : "border-transparent"}`}
+          >
             <div className="p-4 border-b border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h2 className="font-semibold">
@@ -92,8 +136,10 @@ export default function PendentesPage() {
                   )}
                 </h2>
                 <p className="text-xs text-slate-400">
-                  {g.data ? `Prova em ${g.data} · ` : ""}
-                  {g.itens.length} aparelho(s) em campo
+                  {g.data ? `Prova em ${g.data}` : ""}
+                  {g.aparelhos.length > 0 && ` · ${g.aparelhos.length} aparelho(s) com patrimônio`}
+                  {g.acessorios && ` · ${g.acessorios.itens.length} outro(s) material(is)`}
+                  {g.acessorios?.base ? ` · base: ${g.acessorios.base.nome}` : ""}
                 </p>
               </div>
               {g.atrasada && (
@@ -102,36 +148,25 @@ export default function PendentesPage() {
                 </span>
               )}
             </div>
-            <ConferenciaRetorno
-              itens={g.itens}
-              onConcluido={async (msg) => {
-                setOk(msg);
-                await carregar();
-              }}
-            />
-          </section>
-        ))
-      )}
 
-      <div className="pt-2">
-        <h2 className="text-lg font-semibold">Acessórios a conferir</h2>
-        <p className="text-slate-400 text-sm">
-          Extensão, régua, mouse… e equipamento sem patrimônio separado (por quantidade, do card Produtos). Digite quantos voltaram de cada prova; o que faltou
-          pode ser descontado do estoque da base.
-        </p>
-      </div>
-      {acessorios.length === 0 ? (
-        <div className="bg-slate-800 rounded-xl p-6 text-sm text-slate-400">✓ Nenhum acessório a conferir.</div>
-      ) : (
-        acessorios.map((p) => (
-          <ConferenciaAcessorios
-            key={p.evento_id}
-            prova={p}
-            onConcluido={async (msg) => {
-              setOk(msg);
-              await carregar();
-            }}
-          />
+            {g.aparelhos.length > 0 && (
+              <div>
+                <p className="px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-300">
+                  📱 Aparelhos com patrimônio ({g.aparelhos.length})
+                </p>
+                <ConferenciaRetorno itens={g.aparelhos} onConcluido={concluir} />
+              </div>
+            )}
+
+            {g.acessorios && (
+              <div className={g.aparelhos.length > 0 ? "border-t-4 border-slate-900" : ""}>
+                <p className="px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-slate-300">
+                  📦 Demais materiais ({g.acessorios.itens.length})
+                </p>
+                <ConferenciaAcessorios prova={g.acessorios} onConcluido={concluir} embutido />
+              </div>
+            )}
+          </section>
         ))
       )}
     </div>

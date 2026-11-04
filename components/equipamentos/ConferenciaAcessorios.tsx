@@ -20,9 +20,12 @@ export type ProvaAcessoriosTela = {
 export default function ConferenciaAcessorios({
   prova,
   onConcluido,
+  embutido = false,
 }: {
   prova: ProvaAcessoriosTela;
   onConcluido: (msg: string) => void;
+  /** Dentro do card da prova (Pendentes de retorno): sem moldura nem cabeçalho próprios. */
+  embutido?: boolean;
 }) {
   const [voltou, setVoltou] = useState<Record<number, number>>(() =>
     Object.fromEntries(prova.itens.map((i) => [i.produto_id, i.quantidade]))
@@ -64,8 +67,12 @@ export default function ConferenciaAcessorios({
     }
   }
 
+  const Moldura = embutido ? "div" : "section";
   return (
-    <section className={`bg-slate-800 rounded-xl overflow-hidden border ${prova.atrasada ? "border-amber-500/40" : "border-transparent"}`}>
+    <Moldura
+      className={embutido ? "" : `bg-slate-800 rounded-xl overflow-hidden border ${prova.atrasada ? "border-amber-500/40" : "border-transparent"}`}
+    >
+      {!embutido && (
       <div className="p-4 border-b border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <h3 className="font-semibold">
@@ -84,6 +91,7 @@ export default function ConferenciaAcessorios({
           </span>
         )}
       </div>
+      )}
 
       <ul className="divide-y divide-slate-700">
         {prova.itens.map((i) => {
@@ -152,9 +160,9 @@ export default function ConferenciaAcessorios({
           disabled={salvando}
           className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white text-sm px-4 py-2 rounded-lg"
         >
-          {salvando ? "Registrando…" : "Registrar retorno dos acessórios"}
+          {salvando ? "Registrando…" : embutido ? "Registrar retorno dos demais materiais" : "Registrar retorno dos acessórios"}
         </button>
       </div>
-    </section>
+    </Moldura>
   );
 }
