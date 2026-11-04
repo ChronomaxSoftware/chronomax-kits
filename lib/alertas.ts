@@ -6,6 +6,7 @@
 import { dbAll, dbGet, dbRun } from "./db";
 import { parseDataBR } from "./semana";
 import { acessoriosPendentes, textoAlertaAcessorios, type LinhaAcessorio } from "./retorno-acessorios";
+import { comPatrimonios } from "./retorno-acessorios-db";
 
 export type TipoAlerta = "recebimento" | "devolucao";
 
@@ -102,7 +103,7 @@ export async function gerarAlertasRetorno(): Promise<void> {
      FROM evento_produtos ep JOIN eventos v ON v.id = ep.evento_id JOIN produtos p ON p.id = ep.produto_id
      WHERE ep.devolucao_em IS NULL AND ep.quantidade > 0`
   );
-  for (const p of acessoriosPendentes(linhas).filter((x) => x.atrasada)) {
+  for (const p of acessoriosPendentes(await comPatrimonios(linhas)).filter((x) => x.atrasada)) {
     pend.push({ chave: `retorno_acess:${p.evento_id}`, evento_id: p.evento_id, mensagem: textoAlertaAcessorios(p) });
   }
   if (pend.length === 0) return;

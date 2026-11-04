@@ -20,6 +20,8 @@ export type LinhaAcessorio = {
   produto_nome: string;
   quantidade: number;
   devolucao_em: string | null;
+  /** Equipamento (celular, roteador…): patrimônios desta prova desse tipo — conferidos pela lista de patrimônios. */
+  qtd_patrimonio?: number;
 };
 
 export type ProvaAcessorios = {
@@ -30,8 +32,18 @@ export type ProvaAcessorios = {
   uf: string | null;
   /** a prova já passou (dia seguinte em diante) */
   atrasada: boolean;
-  itens: { produto_id: number; nome: string; quantidade: number }[];
+  /** quantidade = o que conferir por contagem; sem_patrimonio = equipamento sem patrimônio separado */
+  itens: { produto_id: number; nome: string; quantidade: number; sem_patrimonio?: boolean }[];
 };
+
+/**
+ * Quanto conferir por contagem: acessório = tudo; equipamento (celular, notebook…) = o que
+ * não tem patrimônio separado (Produtos − patrimônios da prova). Nunca negativo.
+ */
+export function qtdConferirPorContagem(produtoNome: string, quantidade: number, qtdPatrimonio = 0): number {
+  const q = Math.max(0, Number(quantidade) || 0);
+  return tipoDeProduto(produtoNome) ? Math.max(0, q - Math.max(0, Number(qtdPatrimonio) || 0)) : q;
+}
 
 /** Provas do dia em diante (até hoje) com acessório ainda não conferido. */
 export function acessoriosPendentes(linhas: LinhaAcessorio[], agora: Date = new Date()): ProvaAcessorios[] {
@@ -42,7 +54,8 @@ export function acessoriosPendentes(linhas: LinhaAcessorio[], agora: Date = new 
   for (const l of linhas) {
     const d = parseDataBR(l.evento_data);
     if (!d || d < desde || d > hoje) continue;
-    if (l.devolucao_em || tipoDeProduto(l.produto_nome) || !(Number(l.quantidade) > 0)) continue;
+    const qtd = qtdConferirPorContagem(l.produto_nome, l.quantidade, l.qtd_patrimonio);
+    if (l.devolucao_em || !(qtd > 0)) continue;
     if (!provas.has(l.evento_id)) {
       provas.set(l.evento_id, {
         evento_id: l.evento_id,
@@ -54,7 +67,12 @@ export function acessoriosPendentes(linhas: LinhaAcessorio[], agora: Date = new 
         itens: [],
       });
     }
-    provas.get(l.evento_id)!.itens.push({ produto_id: l.produto_id, nome: l.produto_nome, quantidade: Number(l.quantidade) });
+    provas.get(l.evento_id)!.itens.push({
+      produto_id: l.produto_id,
+      nome: l.produto_nome,
+      quantidade: qtd,
+      ...(tipoDeProduto(l.produto_nome) ? { sem_patrimonio: true } : {}),
+    });
   }
   return [...provas.values()].sort(
     (a, b) => (parseDataBR(a.data)?.getTime() ?? 0) - (parseDataBR(b.data)?.getTime() ?? 0)

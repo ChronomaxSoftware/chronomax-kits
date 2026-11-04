@@ -6,6 +6,7 @@
  */
 
 import type { Transaction } from "@libsql/client";
+import { jaSaiuParaProva } from "./retorno-equipamentos";
 
 /** Erro de regra de negócio com status HTTP — a rota devolve `message` ao usuário. */
 export class ErroEquipamento extends Error {
@@ -173,7 +174,25 @@ export async function registrarRetorno(
   usuario: string | null,
   observacao: string | null
 ) {
-  const eq = await lerEquip(tx, id);
+  let eq = await lerEquip(tx, id);
+  // Separado para prova que já saiu, sem 📦 Saída registrada: registra a saída agora e segue o retorno
+  if (eq.status === "alocado" && eq.evento_id) {
+    const pr = await tx.execute({ sql: "SELECT data, data_entrega FROM eventos WHERE id = ?", args: [eq.evento_id] });
+    const prova = pr.rows[0] as unknown as { data: string | null; data_entrega: string | null } | undefined;
+    if (prova && jaSaiuParaProva(prova.data, prova.data_entrega)) {
+      const up = await tx.execute({
+        sql: `UPDATE equipamentos SET status = 'em_campo', saida_em = CURRENT_TIMESTAMP, saida_por = ?,
+                evento_ref = ${SQL_EVENTO_REF}, updated_at = CURRENT_TIMESTAMP
+              WHERE id = ? AND status = 'alocado'`,
+        args: [usuario, eq.evento_id, id],
+      });
+      if (up.rowsAffected !== 1) {
+        throw new ErroEquipamento(`Patrimônio ${eq.patrimonio} acabou de ser alterado por outra pessoa. Tente de novo.`, 409);
+      }
+      await historico(tx, id, eq.evento_id, "saida", usuario, "saída registrada junto com o retorno");
+      eq = await lerEquip(tx, id);
+    }
+  }
   if (eq.status !== "em_campo") {
     throw new ErroEquipamento(`Patrimônio ${eq.patrimonio} não está em campo (nada a dar entrada)`, 409);
   }

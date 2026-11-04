@@ -5,6 +5,7 @@ import Link from "next/link";
 import { TIPOS_EQUIPAMENTO, TipoEquipamento, tipoDeProduto } from "@/lib/equipamentos";
 import { normalizarNome } from "@/lib/tecnico-match";
 import ConferenciaRetorno from "@/components/equipamentos/ConferenciaRetorno";
+import { pendenteDeRetorno } from "@/lib/retorno-equipamentos";
 import { Aviso, EVENTO_EQUIPAMENTOS_MUDOU, botaoPrimario, campo } from "@/components/equipamentos/ui";
 
 type Equipamento = {
@@ -24,6 +25,7 @@ type Evento = {
   numero: string;
   nome: string;
   data: string;
+  data_entrega?: string | null;
   cidade: string | null;
   uf: string | null;
   produtos: { id: number; nome: string; quantidade: number }[];
@@ -82,7 +84,8 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
 
   const daProva = useMemo(() => lista.filter((e) => e.evento_id === eventoId), [lista, eventoId]);
   const separados = useMemo(() => daProva.filter((e) => e.status === "alocado"), [daProva]);
-  const emCampo = useMemo(() => daProva.filter((e) => e.status === "em_campo"), [daProva]);
+  // em campo + separados de prova cuja entrega/data já chegou (saída não registrada: registra junto com o retorno)
+  const emCampo = useMemo(() => daProva.filter((e) => pendenteDeRetorno(e, evento)), [daProva, evento]);
   const disponiveis = useMemo(() => {
     const q = normalizarNome(busca);
     return lista.filter(
