@@ -54,15 +54,36 @@ function lerHora(s: string | undefined): string | null {
   return `${pad(h)}:${pad(min)}`;
 }
 
+const MESES: Record<string, number> = {
+  jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6, jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
+};
+
+/**
+ * Data por extenso → dd/mm: "Quinta-feira (5 de novembro): 11h às 21h" → "5/11: 11h às 21h".
+ * Tira marcador de lista ("- ", "• "), dia da semana e parênteses.
+ */
+export function normalizarDataExtenso(texto: string): string {
+  return texto
+    .replace(
+      /\b(\d{1,2})\s*(?:de\s+)?(janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\.?(?:\s*(?:de\s+)?(\d{4}))?(?![a-zà-ú])/gi,
+      (_, d: string, mes: string, ano?: string) =>
+        `${d}/${MESES[mes.slice(0, 3).toLowerCase().replace("ç", "c")]}${ano ? `/${ano}` : ""}`
+    )
+    .replace(/(?<![a-zà-ú])(?:(?:segunda|ter[çc]a|quarta|quinta|sexta)(?:[\s-]*feira)?|s[áa]bado|domingo)(?![a-zà-ú])\s*,?\s*(?=\(?\s*\d{1,2}\/)/gi, "")
+    .replace(/\(\s*(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*\)/g, " $1 ")
+    .replace(/^[ \t]*[-–•*]+[ \t]*/gm, "");
+}
+
 /**
  * Lê uma linha: "06/11/2026 das 12h00 às 21h00", "06/11 das 12h às 21h", "06/11/26 12:00 - 21:00".
  * Sem ano → `anoPadrao`. O que não casar volta como { texto }.
  */
 export function lerLinha(linha: string, anoPadrao: number = new Date().getFullYear()): LinhaRetirada {
   const s = linha.trim();
+  const n = normalizarDataExtenso(s).trim();
   const m =
     /^(?:[a-zà-ú\-.,]+\s*,?\s*)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b[^\d]*?(\d{1,2}(?:[h:]\d{0,2})?)?\s*(?:h)?\s*(?:às|as|a|até|-|–)?\s*(\d{1,2}(?:[h:]\d{0,2})?)?\s*h?\s*$/i.exec(
-      s
+      n
     );
   if (!m) return { texto: s };
   const dia = Number(m[1]);
@@ -94,12 +115,11 @@ export function lerLinhas(texto: string | null | undefined, anoPadrao?: number):
  * separa vários dias que vieram na mesma linha e normaliza para o formato do book.
  */
 export function converterTextoColado(texto: string, anoPadrao?: number): LinhaRetirada[] {
-  const limpo = String(texto || "")
-    .replace(/\r/g, "")
+  const limpo = normalizarDataExtenso(String(texto || "").replace(/\r/g, ""))
     .replace(/datas?\s+e\s+hor[aá]rios?\s*:?/gi, "\n")
     // cada data (dd/mm ou dd/mm/aaaa) começa um dia novo
     .replace(/\s+(?=\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b)/g, "\n");
-  return lerLinhas(limpo, anoPadrao).map((l) => (ehDia(l) ? l : { texto: l.texto.replace(/\s+/g, " ") }));
+  return lerLinhas(limpo, anoPadrao).map((l) => (ehDia(l) ? l : { texto: l.texto.replace(/\s+/g, " ").trim() }));
 }
 
 /**
