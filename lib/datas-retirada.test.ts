@@ -20,7 +20,8 @@ describe("datas e horários da retirada", () => {
     expect(lerLinha("06/11/26 12:00 - 21:00")).toEqual({ data: "2026-11-06", inicio: "12:00", fim: "21:00" });
     expect(lerLinha("Sexta, 06/11/2026 das 9h30 às 18h")).toEqual({ data: "2026-11-06", inicio: "09:30", fim: "18:00" });
     expect(lerLinha("06/11/2026")).toEqual({ data: "2026-11-06", inicio: "", fim: "" });
-    expect(lerLinha("28 Agosto: 10h às 19h")).toEqual({ texto: "28 Agosto: 10h às 19h" });
+    expect(lerLinha("28 Agosto: 10h às 19h", 2026)).toEqual({ data: "2026-08-28", inicio: "10:00", fim: "19:00" });
+    expect(lerLinha("Agosto é o mês da prova")).toEqual({ texto: "Agosto é o mês da prova" });
     expect(lerLinha("31/02/2026 das 10h às 12h")).toEqual({ texto: "31/02/2026 das 10h às 12h" });
   });
 
@@ -59,6 +60,21 @@ describe("converterTextoColado", () => {
     expect(formatarLinhas(l)).toBe("28/05/2026 das 10h00 às 20h00\n29/05/2026 das 10h00 às 20h00\n30/05/2026 das 10h00 às 14h00");
   });
 
+  it("data por extenso em lista, com dia da semana e parênteses", () => {
+    const texto =
+      "- Quinta-feira (5 de novembro): 11h às 21h\n- Sexta-feira (6 de novembro): 11h às 21h\n- Sábado (7 de novembro): 11h às 19h";
+    const l = converterTextoColado(texto, 2026);
+    expect(formatarLinhas(l)).toBe(
+      "05/11/2026 das 11h00 às 21h00\n06/11/2026 das 11h00 às 21h00\n07/11/2026 das 11h00 às 19h00"
+    );
+    expect(chegadaPrimeiroDia(formatarLinhas(l))?.chegada).toBe("09h00");
+    // tudo numa linha só, mês abreviado, com ano e domingo
+    expect(
+      formatarLinhas(converterTextoColado("Sábado, 7 nov.: 9h às 18h  Domingo 8 de nov de 2026: 6h", 2026))
+    ).toBe("07/11/2026 das 09h00 às 18h00\n08/11/2026 a partir das 06h00");
+    expect(lerLinha("• terça (3 de março) 10h - 20h", 2026)).toEqual({ data: "2026-03-03", inicio: "10:00", fim: "20:00" });
+  });
+
   it("o que não é data fica como texto", () => {
     expect(converterTextoColado("Retirada só com documento")).toEqual([{ texto: "Retirada só com documento" }]);
     expect(converterTextoColado("")).toEqual([]);
@@ -83,5 +99,13 @@ describe("data e hora da entrega vêm do 1º dia", () => {
     expect(diaDaEntregaAntiga("04/11/2026", "9:30")).toBe("04/11/2026 a partir das 09h30");
     expect(diaDaEntregaAntiga("2026-11-04", null)).toBe("04/11/2026");
     expect(diaDaEntregaAntiga(null, "10:00")).toBe("");
+  });
+});
+
+describe("data por extenso não mexe em texto livre", () => {
+  it("dia da semana sem data fica como está", () => {
+    expect(converterTextoColado("Sábado só retirada de número (com documento)")).toEqual([
+      { texto: "Sábado só retirada de número (com documento)" },
+    ]);
   });
 });
