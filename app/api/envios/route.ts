@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { dbAll, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { enderecoEntrega } from "@/lib/envios";
+import { enderecoEntrega, itensBook, type QtdBook } from "@/lib/envios";
 
-type Linha = {
+type Linha = QtdBook & {
   id: number;
   numero: string;
   nome: string;
@@ -17,6 +17,8 @@ type Linha = {
   material_por: string | null;
   numeros_em: string | null;
   numeros_por: string | null;
+  devolvido_em: string | null;
+  devolvido_por: string | null;
   obs: string | null;
   obs_em: string | null;
   obs_por: string | null;
@@ -51,9 +53,12 @@ export async function GET() {
   }
   const provas = await dbAll<Linha>(
     `SELECT e.id, e.numero, e.nome, e.data, e.cidade, e.uf, e.local_prova,
+            e.qtd_celulares, e.qtd_celulares_grupo_online, e.qtd_celulares_produtos_online,
+            e.qtd_roteadores, e.qtd_totens, e.qtd_notebooks,
             v.data_envio, v.endereco, v.material_em, v.material_por, v.numeros_em, v.numeros_por,
+            v.devolvido_em, v.devolvido_por,
             v.obs, v.obs_em, v.obs_por
-     FROM envio_status v JOIN eventos e ON e.id = v.evento_id`
+     FROM envio_status v JOIN eventos e ON e.id = v.evento_id`,
   );
   if (provas.length === 0) return NextResponse.json([]);
 
@@ -65,28 +70,47 @@ export async function GET() {
       `SELECT et.evento_id, t.id, t.nome, t.telefone, t.endereco, t.cidade, et.funcao
        FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id
        WHERE et.evento_id IN (${ph}) ORDER BY t.nome`,
-      ...ids
+      ...ids,
     ),
     dbAll<Prod>(
       `SELECT ep.evento_id, p.nome, ep.quantidade
        FROM evento_produtos ep JOIN produtos p ON p.id = ep.produto_id
        WHERE ep.evento_id IN (${ph}) AND ep.quantidade > 0 ORDER BY p.nome`,
-      ...ids
+      ...ids,
     ),
     dbAll<Equip>(
       `SELECT evento_id, tipo, patrimonio, numero_chip FROM equipamentos
        WHERE evento_id IN (${ph}) ORDER BY tipo, patrimonio`,
-      ...ids
+      ...ids,
     ),
   ]);
 
-  const result = provas.map((p) => ({
-    ...p,
-    tecnicos: tecs
-      .filter((t) => t.evento_id === p.id)
-      .map((t) => ({ ...semEvento(t), endereco_entrega: enderecoEntrega(p.endereco, t.endereco) })),
-    produtos: prods.filter((x) => x.evento_id === p.id).map(semEvento),
-    equipamentos: equips.filter((x) => x.evento_id === p.id).map(semEvento),
-  }));
+  const result = provas.map(
+    ({
+      qtd_celulares,
+      qtd_celulares_grupo_online,
+      qtd_celulares_produtos_online,
+      qtd_roteadores,
+      qtd_totens,
+      qtd_notebooks,
+      ...p
+    }) => ({
+      ...p,
+      // Quantidades do card "📘 Book — Equipamentos" (só as preenchidas)
+      book: itensBook({
+        qtd_celulares,
+        qtd_celulares_grupo_online,
+        qtd_celulares_produtos_online,
+        qtd_roteadores,
+        qtd_totens,
+        qtd_notebooks,
+      }),
+      tecnicos: tecs
+        .filter((t) => t.evento_id === p.id)
+        .map((t) => ({ ...semEvento(t), endereco_entrega: enderecoEntrega(p.endereco, t.endereco) })),
+      produtos: prods.filter((x) => x.evento_id === p.id).map(semEvento),
+      equipamentos: equips.filter((x) => x.evento_id === p.id).map(semEvento),
+    }),
+  );
   return NextResponse.json(result);
 }

@@ -5,7 +5,8 @@ import { OBS_ENVIO_MAX, ehEtapaEnvio } from "@/lib/envios";
 
 /**
  * POST /api/envios/[id] — quem envia marca/desmarca um "ok" ou salva a observação.
- *   { etapa: "material" | "numeros", marcado: boolean }  ou  { obs: string }
+ *   { etapa: "material" | "numeros" | "devolvido", marcado: boolean }  ou  { obs: string }
+ * "devolvido" só depois do material enviado; desmarcar o material desmarca a devolução.
  * Só para provas já incluídas na aba (a inclusão é do escritório, na tela da prova).
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +16,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
   const id = Number((await params).id);
-  const atual = await dbGet<{ evento_id: number }>("SELECT evento_id FROM envio_status WHERE evento_id = ?", id);
+  const atual = await dbGet<{ evento_id: number; material_em: string | null }>(
+    "SELECT evento_id, material_em FROM envio_status WHERE evento_id = ?",
+    id
+  );
   if (!atual) return NextResponse.json({ error: "Esta prova não está na lista de envios" }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
@@ -24,9 +28,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (ehEtapaEnvio(body.etapa)) {
     // nome da coluna vem de uma lista fechada (ehEtapaEnvio), não do texto do pedido
-    const col = body.etapa === "material" ? "material" : "numeros";
+    const col = body.etapa === "material" ? "material" : body.etapa === "numeros" ? "numeros" : "devolvido";
+    if (col === "devolvido" && body.marcado && !atual.material_em) {
+      return NextResponse.json({ error: "Marque primeiro \"Material enviado\"." }, { status: 400 });
+    }
     if (body.marcado) await dbRun(`UPDATE envio_status SET ${col}_em = ?, ${col}_por = ? WHERE evento_id = ?`, agora, quem, id);
-    else await dbRun(`UPDATE envio_status SET ${col}_em = NULL, ${col}_por = NULL WHERE evento_id = ?`, id);
+    else if (col === "material") {
+      // sem material enviado não existe devolução
+      await dbRun(
+        "UPDATE envio_status SET material_em = NULL, material_por = NULL, devolvido_em = NULL, devolvido_por = NULL WHERE evento_id = ?",
+        id
+      );
+    } else await dbRun(`UPDATE envio_status SET ${col}_em = NULL, ${col}_por = NULL WHERE evento_id = ?`, id);
   } else if (typeof body.obs === "string") {
     const obs = body.obs.trim().slice(0, OBS_ENVIO_MAX);
     await dbRun(

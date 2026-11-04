@@ -3,7 +3,9 @@ import {
   agruparEnvios,
   ehEtapaEnvio,
   enderecoEntrega,
+  itensBook,
   linkMapa,
+  materialSeparado,
   normalizarDataEnvio,
   rotuloDataEnvio,
   situacaoEnvio,
@@ -29,6 +31,10 @@ describe("envios — regras", () => {
     expect(situacaoEnvio({ material_em: null, numeros_em: null })).toBe("pendente");
     expect(situacaoEnvio({ material_em: "x", numeros_em: null })).toBe("parcial");
     expect(situacaoEnvio({ material_em: "x", numeros_em: "y" })).toBe("enviado");
+    expect(situacaoEnvio({ material_em: "x", numeros_em: "y", devolvido_em: "z" })).toBe("devolvido");
+    expect(situacaoEnvio({ material_em: "x", numeros_em: null, devolvido_em: "z" })).toBe("devolvido");
+    expect(situacaoEnvio({ material_em: null, numeros_em: "y", devolvido_em: "z" })).toBe("parcial"); // sem material não há devolução
+    expect(ehEtapaEnvio("devolvido")).toBe(true);
   });
 
   it("data de envio: vazio = sem data, inválida = erro", () => {
@@ -61,23 +67,44 @@ describe("agruparEnvios", () => {
     p(5, "2026-10-30", { material_em: "a", numeros_em: "b" }),
     p(6, null),
     p(7, "2026-11-04", { material_em: "a", numeros_em: "b" }),
+    p(8, "2026-10-28", { material_em: "a", numeros_em: "b", devolvido_em: "2026-11-02T10:00:00Z" }),
+    p(9, "2026-10-20", { material_em: "a", numeros_em: "b", devolvido_em: "2026-10-25T10:00:00Z" }),
   ];
 
-  it("separa atrasadas, dias, sem data e já enviadas", () => {
+  it("separa atrasadas, dias, sem data, aguardando devolução e concluídas", () => {
     const g = agruparEnvios(lista, { hoje, soPendentes: false, busca: "" });
     expect(g.atrasadas.map((x) => x.id)).toEqual([4]);
     expect(g.dias.map((d) => d.chave)).toEqual(["2026-11-03", "2026-11-04", "2026-11-05"]);
     expect(g.dias[2].provas.map((x) => x.id)).toEqual([3, 1]); // pela data da prova
     expect(g.semData.map((x) => x.id)).toEqual([6]);
-    expect(g.enviadas.map((x) => x.id)).toEqual([5]);
+    expect(g.aguardandoDevolucao.map((x) => x.id)).toEqual([5]);
+    expect(g.concluidas.map((x) => x.id)).toEqual([8, 9]); // devolvida mais recente primeiro
   });
 
-  it("pendentes esconde o que já foi todo enviado; busca por nome/número", () => {
+  it("pendentes esconde só o que já foi devolvido; busca por nome/número", () => {
     const g = agruparEnvios(lista, { hoje, soPendentes: true, busca: "" });
-    expect(g.enviadas).toEqual([]);
-    expect(g.dias.map((d) => d.chave)).toEqual(["2026-11-03", "2026-11-05"]);
+    expect(g.concluidas).toEqual([]);
+    expect(g.aguardandoDevolucao.map((x) => x.id)).toEqual([5]); // enviado mas não voltou continua pendente
+    expect(g.dias.map((d) => d.chave)).toEqual(["2026-11-03", "2026-11-04", "2026-11-05"]);
     const b = agruparEnvios(lista, { hoje, soPendentes: false, busca: "1006" });
     expect(b.semData.map((x) => x.id)).toEqual([6]);
     expect(b.dias).toEqual([]);
+  });
+});
+
+describe("material do envio", () => {
+  it("book: só o que tem quantidade, na ordem do card", () => {
+    expect(itensBook({ qtd_roteadores: 2, qtd_celulares: 8, qtd_totens: 0, qtd_notebooks: null })).toEqual([
+      { nome: "Celulares (número)", quantidade: 8 },
+      { nome: "Roteadores", quantidade: 2 },
+    ]);
+    expect(itensBook({})).toEqual([]);
+  });
+
+  it("separado = produto com quantidade ou patrimônio", () => {
+    expect(materialSeparado({ produtos: [], equipamentos: [] })).toBe(false);
+    expect(materialSeparado({ produtos: [{ quantidade: 0 }], equipamentos: [] })).toBe(false);
+    expect(materialSeparado({ produtos: [{ quantidade: 2 }], equipamentos: [] })).toBe(true);
+    expect(materialSeparado({ produtos: [], equipamentos: [{}] })).toBe(true);
   });
 });

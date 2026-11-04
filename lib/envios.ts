@@ -1,7 +1,8 @@
 /**
  * Aba Envios: provas em que alguém (ex.: o ajudante do Rio) manda o material e os
  * números para o técnico. O escritório inclui a prova pelo card "📦 Envio" da prova e
- * define a data de envio; quem envia marca ✅ Material enviado e ✅ Números enviados.
+ * define a data de envio; quem envia marca ✅ Material enviado e ✅ Números enviados e,
+ * depois da prova, ↩️ Material devolvido.
  * Fica em envio_status (a linha existir = a prova está na lista; o sync não mexe).
  */
 
@@ -12,16 +13,25 @@ const sem = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCas
 export const OBS_ENVIO_MAX = 500;
 export const ENDERECO_MAX = 300;
 
-/** Os dois "ok" da aba. */
-export type EtapaEnvio = "material" | "numeros";
+/** Os "ok" da aba: enviou o material, enviou os números e, depois da prova, o material voltou. */
+export type EtapaEnvio = "material" | "numeros" | "devolvido";
 
 export function ehEtapaEnvio(x: unknown): x is EtapaEnvio {
-  return x === "material" || x === "numeros";
+  return x === "material" || x === "numeros" || x === "devolvido";
 }
 
-export type SituacaoEnvio = "pendente" | "parcial" | "enviado";
+/**
+ * pendente → nada enviado; parcial → só material ou só números; enviado → os dois
+ * enviados, aguardando o material voltar; devolvido → material enviado e já devolvido (concluído).
+ */
+export type SituacaoEnvio = "pendente" | "parcial" | "enviado" | "devolvido";
 
-export function situacaoEnvio(s: { material_em: string | null; numeros_em: string | null }): SituacaoEnvio {
+export function situacaoEnvio(s: {
+  material_em: string | null;
+  numeros_em: string | null;
+  devolvido_em?: string | null;
+}): SituacaoEnvio {
+  if (s.material_em && s.devolvido_em) return "devolvido";
   if (s.material_em && s.numeros_em) return "enviado";
   if (s.material_em || s.numeros_em) return "parcial";
   return "pendente";
@@ -80,6 +90,7 @@ export type EnvioBase = {
   data_envio: string | null;
   material_em: string | null;
   numeros_em: string | null;
+  devolvido_em?: string | null;
 };
 
 export type GruposEnvio<T> = {
@@ -89,30 +100,36 @@ export type GruposEnvio<T> = {
   dias: { chave: string; dia: Date; provas: T[] }[];
   /** Incluídas na lista mas ainda sem data de envio. */
   semData: T[];
-  /** Tudo enviado e a data de envio já passou (mais recente primeiro). */
-  enviadas: T[];
+  /** Tudo enviado, data de envio já passou e o material ainda não voltou. */
+  aguardandoDevolucao: T[];
+  /** Material devolvido (mais recente primeiro). */
+  concluidas: T[];
 };
 
 function ordemProva(a: EnvioBase, b: EnvioBase): number {
   return (parseDataBR(a.data)?.getTime() ?? Infinity) - (parseDataBR(b.data)?.getTime() ?? Infinity);
 }
 
-/** Filtra (pendentes = falta material ou números; busca no nome/número) e agrupa. */
+/** Filtra (pendentes = ainda não concluída, ou seja, material não devolvido; busca no nome/número) e agrupa. */
 export function agruparEnvios<T extends EnvioBase>(
   provas: T[],
   opts: { hoje: Date; soPendentes: boolean; busca: string }
 ): GruposEnvio<T> {
   const q = sem(opts.busca.trim());
   const hoje = inicioDoDia(opts.hoje).getTime();
-  const grupos: GruposEnvio<T> = { atrasadas: [], dias: [], semData: [], enviadas: [] };
+  const grupos: GruposEnvio<T> = { atrasadas: [], dias: [], semData: [], aguardandoDevolucao: [], concluidas: [] };
 
   for (const p of provas) {
-    const completo = situacaoEnvio(p) === "enviado";
-    if (opts.soPendentes && completo) continue;
+    const sit = situacaoEnvio(p);
+    if (opts.soPendentes && sit === "devolvido") continue;
     if (q && !sem(p.nome || "").includes(q) && !String(p.numero || "").includes(q)) continue;
+    if (sit === "devolvido") {
+      grupos.concluidas.push(p);
+      continue;
+    }
     const d = dataEnvioParaDate(p.data_envio);
     if (!d) grupos.semData.push(p);
-    else if (d.getTime() < hoje) (completo ? grupos.enviadas : grupos.atrasadas).push(p);
+    else if (d.getTime() < hoje) (sit === "enviado" ? grupos.aguardandoDevolucao : grupos.atrasadas).push(p);
     else {
       const chave = p.data_envio!;
       let g = grupos.dias.find((x) => x.chave === chave);
@@ -125,6 +142,40 @@ export function agruparEnvios<T extends EnvioBase>(
   for (const g of grupos.dias) g.provas.sort(ordemProva);
   grupos.atrasadas.sort((a, b) => String(a.data_envio).localeCompare(String(b.data_envio)));
   grupos.semData.sort(ordemProva);
-  grupos.enviadas.sort((a, b) => String(b.data_envio).localeCompare(String(a.data_envio)));
+  grupos.aguardandoDevolucao.sort((a, b) => String(a.data_envio).localeCompare(String(b.data_envio)));
+  grupos.concluidas.sort((a, b) => String(b.devolvido_em).localeCompare(String(a.devolvido_em)));
   return grupos;
+}
+
+// ── Material para entregar ao técnico ──
+
+/** Quantidades do card "📘 Book — Equipamentos" da prova (eventos.qtd_*). */
+export type QtdBook = {
+  qtd_roteadores?: number | null;
+  qtd_celulares?: number | null;
+  qtd_celulares_grupo_online?: number | null;
+  qtd_celulares_produtos_online?: number | null;
+  qtd_totens?: number | null;
+  qtd_notebooks?: number | null;
+};
+
+const ROTULO_BOOK: [keyof QtdBook, string][] = [
+  ["qtd_celulares", "Celulares (número)"],
+  ["qtd_celulares_grupo_online", "Celular grupo online"],
+  ["qtd_celulares_produtos_online", "Celulares produtos online"],
+  ["qtd_roteadores", "Roteadores"],
+  ["qtd_totens", "Totens"],
+  ["qtd_notebooks", "Notebooks"],
+];
+
+/** Itens do book com quantidade > 0, na ordem do card. */
+export function itensBook(q: QtdBook): { nome: string; quantidade: number }[] {
+  return ROTULO_BOOK.map(([k, nome]) => ({ nome, quantidade: Math.max(0, Math.floor(Number(q[k]) || 0)) })).filter(
+    (x) => x.quantidade > 0
+  );
+}
+
+/** Já tem material separado no escritório (produtos com quantidade ou patrimônios)? */
+export function materialSeparado(m: { produtos: { quantidade: number }[]; equipamentos: unknown[] }): boolean {
+  return m.produtos.some((p) => Number(p.quantidade) > 0) || m.equipamentos.length > 0;
 }

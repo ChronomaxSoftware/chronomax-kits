@@ -6,7 +6,7 @@ import BotaoTxtSemana from "@/components/BotaoTxtSemana";
 import BotaoTxtSeparacao from "@/components/BotaoTxtSeparacao";
 import { textoNotaFiscalSemana } from "@/lib/nota-fiscal";
 import { textoTecnicosSemana } from "@/lib/txt-tecnicos";
-import { rotuloDataEnvio } from "@/lib/envios";
+import { rotuloDataEnvio, situacaoEnvio } from "@/lib/envios";
 import { parseDataBR, inicioSemana, fimSemana, formatBR, chaveSemana, dataNaJanela, JANELA_SEMANAS } from "@/lib/semana";
 
 type Produto = { id: number; nome: string };
@@ -39,6 +39,7 @@ type Evento = {
   data_envio?: string | null;
   envio_material_em?: string | null;
   envio_numeros_em?: string | null;
+  envio_devolvido_em?: string | null;
   tecnicos: { id: number; nome: string; funcao?: string | null }[];
   produtos: { id: number; nome: string; quantidade: number }[];
   qtd_notebook_atendimento: number;
@@ -907,13 +908,7 @@ function CardEvento({ evento, onAtualizar }: { evento: Evento; onAtualizar: (e: 
             </span>
           )}
           {evento.no_envio ? (
-            <span
-              className={`${evento.envio_material_em && evento.envio_numeros_em ? "bg-emerald-700" : "bg-sky-700"} text-white text-[10px] font-bold px-2 py-0.5 rounded`}
-              title={evento.envio_material_em && evento.envio_numeros_em ? "Material e números já enviados" : "Na aba Envios: material e números a enviar"}
-            >
-              📦 {evento.data_envio ? rotuloDataEnvio(evento.data_envio) : "Envio"}
-              {evento.envio_material_em && evento.envio_numeros_em ? " ✓" : ""}
-            </span>
+            <BadgeEnvio evento={evento} />
           ) : null}
           <span className={`${corStatus} text-white text-xs px-2 py-0.5 rounded`}>{labelStatus}</span>
         </div>
@@ -1028,5 +1023,27 @@ function CardEvento({ evento, onAtualizar }: { evento: Evento; onAtualizar: (e: 
         </div>
       )}
     </Link>
+  );
+}
+
+/** Badge 📦 da aba Envios: azul = a enviar, ↩️ = enviado aguardando devolução, verde ✓ = devolvido. */
+function BadgeEnvio({ evento }: { evento: Evento }) {
+  const sit = situacaoEnvio({
+    material_em: evento.envio_material_em ?? null,
+    numeros_em: evento.envio_numeros_em ?? null,
+    devolvido_em: evento.envio_devolvido_em ?? null,
+  });
+  const cor = sit === "devolvido" ? "bg-emerald-700" : sit === "enviado" ? "bg-amber-700" : "bg-sky-700";
+  const titulo =
+    sit === "devolvido"
+      ? "Material enviado e já devolvido"
+      : sit === "enviado"
+        ? "Material e números enviados — aguardando devolução"
+        : "Na aba Envios: material e números a enviar";
+  return (
+    <span className={`${cor} text-white text-[10px] font-bold px-2 py-0.5 rounded`} title={titulo}>
+      📦 {evento.data_envio ? rotuloDataEnvio(evento.data_envio) : "Envio"}
+      {sit === "devolvido" ? " ✓" : sit === "enviado" ? " ↩️" : ""}
+    </span>
   );
 }

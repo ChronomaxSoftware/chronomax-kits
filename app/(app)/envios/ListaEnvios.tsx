@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { linkWhatsApp } from "@/lib/convite-texto";
-import { OBS_ENVIO_MAX, agruparEnvios, linkMapa, rotuloDataEnvio, situacaoEnvio, type EtapaEnvio } from "@/lib/envios";
+import {
+  OBS_ENVIO_MAX,
+  agruparEnvios,
+  linkMapa,
+  materialSeparado,
+  rotuloDataEnvio,
+  situacaoEnvio,
+  type EtapaEnvio,
+} from "@/lib/envios";
 import { BotaoEtapa } from "../telao/ListaTelao";
 
 type Tecnico = {
@@ -29,12 +37,16 @@ type Prova = {
   material_por: string | null;
   numeros_em: string | null;
   numeros_por: string | null;
+  devolvido_em: string | null;
+  devolvido_por: string | null;
   obs: string | null;
   obs_em: string | null;
   obs_por: string | null;
   tecnicos: Tecnico[];
   produtos: { nome: string; quantidade: number }[];
   equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null }[];
+  /** Quantidades do card "📘 Book — Equipamentos" */
+  book: { nome: string; quantidade: number }[];
 };
 
 const quando = (iso: string | null) =>
@@ -45,7 +57,8 @@ const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sáb
 const SELO: Record<ReturnType<typeof situacaoEnvio>, { txt: string; cls: string }> = {
   pendente: { txt: "A enviar", cls: "bg-amber-500/15 text-amber-300 border-amber-500/40" },
   parcial: { txt: "Enviado em parte", cls: "bg-blue-500/15 text-blue-300 border-blue-500/40" },
-  enviado: { txt: "Tudo enviado", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" },
+  enviado: { txt: "↩️ Aguardando devolução", cls: "bg-violet-500/15 text-violet-300 border-violet-500/40" },
+  devolvido: { txt: "✅ Devolvido", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" },
 };
 
 function tituloDia(dia: Date, hoje: Date): string {
@@ -61,7 +74,7 @@ export default function ListaEnvios({ podeAbrirProva }: { podeAbrirProva: boolea
   const [erro, setErro] = useState("");
   const [soPendentes, setSoPendentes] = useState(true);
   const [busca, setBusca] = useState("");
-  const [verEnviadas, setVerEnviadas] = useState(false);
+  const [verConcluidas, setVerConcluidas] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
@@ -89,7 +102,11 @@ export default function ListaEnvios({ podeAbrirProva }: { podeAbrirProva: boolea
 
   if (!provas && !erro) return <p className="text-slate-400 text-sm">Carregando…</p>;
 
-  const vazio = grupos.atrasadas.length === 0 && grupos.dias.length === 0 && grupos.semData.length === 0;
+  const vazio =
+    grupos.atrasadas.length === 0 &&
+    grupos.dias.length === 0 &&
+    grupos.semData.length === 0 &&
+    grupos.aguardandoDevolucao.length === 0;
   const card = (p: Prova) => <CardEnvio key={p.id} prova={p} podeAbrirProva={podeAbrirProva} onSalvo={atualizar} />;
 
   return (
@@ -155,12 +172,19 @@ export default function ListaEnvios({ podeAbrirProva }: { podeAbrirProva: boolea
         </section>
       )}
 
-      {grupos.enviadas.length > 0 && (
+      {grupos.aguardandoDevolucao.length > 0 && (
         <section>
-          <button onClick={() => setVerEnviadas((v) => !v)} className="text-sm text-slate-400 hover:text-white">
-            {verEnviadas ? "▾" : "▸"} Já enviados ({grupos.enviadas.length})
+          <h2 className="text-sm font-semibold text-violet-300 mb-2">↩️ Aguardando devolução do material</h2>
+          <div className="space-y-3">{grupos.aguardandoDevolucao.map(card)}</div>
+        </section>
+      )}
+
+      {grupos.concluidas.length > 0 && (
+        <section>
+          <button onClick={() => setVerConcluidas((v) => !v)} className="text-sm text-slate-400 hover:text-white">
+            {verConcluidas ? "▾" : "▸"} Concluídas — material devolvido ({grupos.concluidas.length})
           </button>
-          {verEnviadas && <div className="space-y-3 mt-3">{grupos.enviadas.map(card)}</div>}
+          {verConcluidas && <div className="space-y-3 mt-3">{grupos.concluidas.map(card)}</div>}
         </section>
       )}
     </div>
@@ -172,7 +196,6 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
   const [erro, setErro] = useState("");
   const [obs, setObs] = useState(p.obs || "");
   const [obsSalva, setObsSalva] = useState(false);
-  const [verMaterial, setVerMaterial] = useState(false);
   const selo = SELO[situacaoEnvio(p)];
 
   async function enviar(body: unknown) {
@@ -196,6 +219,8 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
         material_por: d.material_por,
         numeros_em: d.numeros_em,
         numeros_por: d.numeros_por,
+        devolvido_em: d.devolvido_em,
+        devolvido_por: d.devolvido_por,
         obs: d.obs,
         obs_em: d.obs_em,
         obs_por: d.obs_por,
@@ -210,7 +235,15 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
   }
 
   function alternar(etapa: EtapaEnvio, marcado: boolean) {
-    if (!marcado && !confirm(etapa === "material" ? 'Desmarcar "Material enviado"?' : 'Desmarcar "Números enviados"?')) return;
+    const pergunta =
+      etapa === "material"
+        ? p.devolvido_em
+          ? 'Desmarcar "Material enviado"? A devolução também será desmarcada.'
+          : 'Desmarcar "Material enviado"?'
+        : etapa === "numeros"
+          ? 'Desmarcar "Números enviados"?'
+          : 'Desmarcar "Material devolvido"?';
+    if (!marcado && !confirm(pergunta)) return;
     enviar({ etapa, marcado });
   }
 
@@ -222,7 +255,8 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
   }
 
   const local = [p.cidade, p.uf].filter(Boolean).join("/");
-  const totalItens = p.produtos.length + p.equipamentos.length;
+  const produtos = p.produtos.filter((x) => x.quantidade > 0);
+  const separado = materialSeparado(p);
 
   return (
     <div className="bg-slate-800 rounded-xl p-4 space-y-3">
@@ -290,38 +324,52 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
         )}
       </div>
 
-      {/* Material */}
-      <div>
-        <button onClick={() => setVerMaterial((v) => !v)} className="text-sm text-slate-300 hover:text-white">
-          {verMaterial ? "▾" : "▸"} Material da prova ({totalItens === 0 ? "nada separado ainda" : `${totalItens} ite${totalItens === 1 ? "m" : "ns"}`})
-        </button>
-        {verMaterial && totalItens > 0 && (
-          <div className="mt-2 rounded-lg bg-slate-900/60 border border-slate-700 px-3 py-2 text-sm space-y-2">
-            {p.produtos.length > 0 && (
-              <ul className="space-y-0.5">
-                {p.produtos.map((x) => (
-                  <li key={x.nome} className="flex justify-between gap-3 text-slate-200">
-                    <span>{x.nome}</span>
-                    <span className="text-slate-400">{x.quantidade}×</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {p.equipamentos.length > 0 && (
-              <div>
-                <p className="text-[11px] uppercase text-slate-500 mb-0.5">Patrimônios</p>
-                <ul className="flex flex-wrap gap-1.5">
-                  {p.equipamentos.map((e) => (
-                    <li key={`${e.tipo}-${e.patrimonio}`} className="text-xs rounded bg-slate-700 text-slate-200 px-2 py-0.5">
-                      {e.tipo} {e.patrimonio}
-                      {e.numero_chip ? ` · ${e.numero_chip}` : ""}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+      {/* Material para entregar ao técnico (sempre aberto) */}
+      <div className="rounded-lg bg-slate-900/60 border border-slate-700 px-3 py-2 text-sm space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">📦 Material para entregar ao técnico</p>
+        {!separado && (
+          <p className="text-xs text-amber-300">⚠️ Material ainda não separado no escritório.</p>
+        )}
+        {produtos.length > 0 && (
+          <ul className="space-y-0.5">
+            {produtos.map((x) => (
+              <li key={x.nome} className="flex justify-between gap-3 text-slate-200">
+                <span>{x.nome}</span>
+                <span className="text-white font-medium">{x.quantidade}×</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {p.equipamentos.length > 0 && (
+          <div>
+            <p className="text-[11px] uppercase text-slate-500 mb-0.5">Celulares / patrimônios ({p.equipamentos.length})</p>
+            <ul className="flex flex-wrap gap-1.5">
+              {p.equipamentos.map((e) => (
+                <li key={`${e.tipo}-${e.patrimonio}`} className="text-xs rounded bg-slate-700 text-slate-200 px-2 py-0.5">
+                  {e.tipo} {e.patrimonio}
+                  {e.numero_chip ? ` · ${e.numero_chip}` : ""}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
+        {p.book.length > 0 && (
+          <div>
+            <p className="text-[11px] uppercase text-slate-500 mb-0.5">Equipamentos (book da prova)</p>
+            <ul className="space-y-0.5">
+              {p.book.map((x) => (
+                <li key={x.nome} className="flex justify-between gap-3 text-slate-200">
+                  <span>{x.nome}</span>
+                  <span className="text-white font-medium">{x.quantidade}×</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="flex justify-between gap-3 text-slate-200 border-t border-slate-700 pt-1.5">
+          <span>🔢 Números de peito</span>
+          <span className={p.numeros_em ? "text-emerald-300" : "text-slate-500"}>{p.numeros_em ? "enviados ✓" : "enviar junto"}</span>
+        </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -339,6 +387,18 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
           ocupado={ocupado}
           onClick={() => alternar("numeros", !p.numeros_em)}
         />
+        {/* Devolução: só depois que o material foi enviado */}
+        {p.material_em && (
+          <div className="sm:col-span-2">
+            <BotaoEtapa
+              rotulo="↩️ Material devolvido"
+              em={p.devolvido_em}
+              por={p.devolvido_por}
+              ocupado={ocupado}
+              onClick={() => alternar("devolvido", !p.devolvido_em)}
+            />
+          </div>
+        )}
       </div>
 
       <div>
