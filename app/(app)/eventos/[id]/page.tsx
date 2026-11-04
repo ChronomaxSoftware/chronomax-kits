@@ -9,6 +9,7 @@ import { TipoEquipamento, tipoDeProduto } from "@/lib/equipamentos";
 import SeletorEquipamentosProduto, { EquipamentoResumo } from "@/components/equipamentos/SeletorEquipamentosProduto";
 import CardEnvioProva from "@/components/envios/CardEnvioProva";
 import CardKitsProva from "@/components/kits/CardKitsProva";
+import { equipamentosBook } from "@/lib/book-equipamentos";
 
 type Evento = {
   id: number;
@@ -90,11 +91,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
   const [cronogramaEvento, setCronogramaEvento] = useState("");
   const [passoAPasso, setPassoAPasso] = useState("");
   const [entregaLocaisSeparados, setEntregaLocaisSeparados] = useState("");
-  const [qtdRoteadores, setQtdRoteadores] = useState(0);
   const [qtdCelGrupo, setQtdCelGrupo] = useState(0);
   const [qtdCelProdutos, setQtdCelProdutos] = useState(0);
-  const [qtdNotebooks, setQtdNotebooks] = useState(0);
-  const [qtdTotens, setQtdTotens] = useState(0);
   const [urlSiteOficial, setUrlSiteOficial] = useState("");
   const [linksEvento, setLinksEvento] = useState("");
   const [usuariosEvento, setUsuariosEvento] = useState("");
@@ -132,11 +130,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
       setCronogramaEvento(ev.cronograma_evento || "");
       setPassoAPasso(ev.passo_a_passo_kits || "");
       setEntregaLocaisSeparados(ev.entrega_locais_separados || "");
-      setQtdRoteadores(ev.qtd_roteadores || 0);
       setQtdCelGrupo(ev.qtd_celulares_grupo_online || 0);
       setQtdCelProdutos(ev.qtd_celulares_produtos_online || 0);
-      setQtdNotebooks(ev.qtd_notebooks || 0);
-      setQtdTotens(ev.qtd_totens || 0);
       setUrlSiteOficial(ev.url_site_oficial || "");
       setLinksEvento(ev.links_evento || "");
       setUsuariosEvento(ev.usuarios_evento || "");
@@ -163,6 +158,12 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
     const atual = pedidoPorTipo.get(t);
     pedidoPorTipo.set(t, { qtd: (atual?.qtd || 0) + q, primeiroProduto: atual?.primeiroProduto ?? p.id });
   }
+
+  // "📘 Book — Equipamentos" ao vivo, do que está no card Produtos (mesmo antes de salvar)
+  const book = equipamentosBook(
+    produtos.map((p) => ({ nome: p.nome, quantidade: produtosSel.get(p.id) || 0 })),
+    { qtd_celulares_grupo_online: qtdCelGrupo, qtd_celulares_produtos_online: qtdCelProdutos }
+  );
 
   function toggleTecnico(tid: number) {
     const novo = new Set(tecnicosSel);
@@ -201,11 +202,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
         cronograma_evento: cronogramaEvento || null,
         passo_a_passo_kits: passoAPasso || null,
         entrega_locais_separados: entregaLocaisSeparados || null,
-        qtd_roteadores: qtdRoteadores,
         qtd_celulares_grupo_online: qtdCelGrupo,
         qtd_celulares_produtos_online: qtdCelProdutos,
-        qtd_notebooks: qtdNotebooks,
-        qtd_totens: qtdTotens,
         url_site_oficial: urlSiteOficial || null,
         links_evento: linksEvento || null,
         usuarios_evento: usuariosEvento || null,
@@ -421,14 +419,30 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Endereço da retirada</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block text-xs text-slate-400">Endereço da retirada</label>
+                  {localEntrega.trim() && enderecoRetirada.trim() !== localEntrega.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => setEnderecoRetirada(localEntrega)}
+                      className="text-[11px] text-blue-400 hover:text-blue-300"
+                    >
+                      Copiar do Local de entrega
+                    </button>
+                  )}
+                </div>
                 <textarea
                   value={enderecoRetirada}
                   onChange={(e) => setEnderecoRetirada(e.target.value)}
                   rows={2}
-                  placeholder="Shopping Market Place&#10;Av. Dr. Chucri Zaidan, 902 - Piso Térreo"
+                  placeholder={localEntrega.trim() ? "Vazio = usa o Local de entrega" : "Shopping Market Place — Av. Dr. Chucri Zaidan, 902"}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
                 />
+                {!enderecoRetirada.trim() && localEntrega.trim() && (
+                  <p className="mt-1 text-[11px] text-slate-500 whitespace-pre-line">
+                    No book vai o <strong className="text-slate-300">Local de entrega</strong>: {localEntrega.trim()}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Avisos da retirada</label>
@@ -454,12 +468,25 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
 
           <Card titulo="📘 Book — Equipamentos">
             <div className="grid grid-cols-2 gap-3">
-              <NumField label="Roteadores" value={qtdRoteadores} onChange={setQtdRoteadores} />
-              <NumField label="Celulares número" value={qtdCelulares} onChange={setQtdCelulares} />
+              <p className="col-span-2 text-[11px] text-slate-500">
+                Roteadores, celulares número, totens e notebooks vêm do card <strong className="text-slate-300">Produtos</strong>.
+              </p>
+              <NumAuto label="Roteadores" value={book.roteadores} />
+              <NumAuto
+                label="Celulares número"
+                value={book.celulares_numero}
+                dica={book.celulares_total > 0 ? `${book.celulares_total} celulares − online` : undefined}
+              />
               <NumField label="Celular grupo online" value={qtdCelGrupo} onChange={setQtdCelGrupo} />
               <NumField label="Celulares produtos online" value={qtdCelProdutos} onChange={setQtdCelProdutos} />
-              <NumField label="Totens" value={qtdTotens} onChange={setQtdTotens} />
-              <NumField label="Notebooks" value={qtdNotebooks} onChange={setQtdNotebooks} />
+              {book.online_excede && (
+                <p className="col-span-2 text-xs text-amber-300">
+                  ⚠️ Os celulares online ({book.celulares_grupo_online + book.celulares_produtos_online}) passam do total de celulares no
+                  Produtos ({book.celulares_total}).
+                </p>
+              )}
+              <NumAuto label="Totens" value={book.totens} />
+              <NumAuto label="Notebooks" value={book.notebooks} />
               <div className="col-span-2">
                 <label className="block text-xs text-slate-400 mb-1">Entrega de locais separados (texto livre)</label>
                 <textarea
@@ -753,6 +780,19 @@ function Card({ titulo, children }: { titulo: string; children: React.ReactNode 
     <div className="bg-slate-800 rounded-xl p-4">
       <h2 className="font-bold mb-3 text-white">{titulo}</h2>
       {children}
+    </div>
+  );
+}
+
+/** Número do book calculado do card Produtos (só leitura). */
+function NumAuto({ label, value, dica }: { label: string; value: number; dica?: string }) {
+  return (
+    <div>
+      <label className="block text-xs text-slate-400 mb-1">{label}</label>
+      <div className="w-full bg-slate-900/50 border border-dashed border-slate-700 rounded-lg px-3 py-2 text-sm flex items-baseline justify-between gap-2">
+        <span className="text-white font-semibold">{value}</span>
+        <span className="text-[10px] text-slate-500 truncate">{dica || "do Produtos"}</span>
+      </div>
     </div>
   );
 }

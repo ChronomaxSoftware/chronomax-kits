@@ -2,6 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { enderecoRetiradaBook, equipamentosBook } from "@/lib/book-equipamentos";
 
 type Tecnico = { id: number; nome: string; telefone: string | null };
 type Produto = { id: number; nome: string; quantidade: number };
@@ -42,6 +43,24 @@ type Evento = {
   tecnicos: Tecnico[];
   produtos: Produto[];
 };
+
+/**
+ * Equipamentos calculados do card Produtos (celulares número = total − online) e,
+ * sem endereço da retirada, o Local de entrega. O resto do book usa estes campos.
+ */
+function comDadosCalculados(ev: Evento): Evento {
+  const eq = equipamentosBook(ev.produtos || [], ev);
+  return {
+    ...ev,
+    qtd_roteadores: eq.roteadores,
+    qtd_celulares: eq.celulares_numero,
+    qtd_celulares_grupo_online: eq.celulares_grupo_online,
+    qtd_celulares_produtos_online: eq.celulares_produtos_online,
+    qtd_totens: eq.totens,
+    qtd_notebooks: eq.notebooks,
+    endereco_retirada: enderecoRetiradaBook(ev.endereco_retirada, ev.local_entrega) || null,
+  };
+}
 
 function formatarDataIso(iso: string | null): string {
   if (!iso) return "";
@@ -166,7 +185,9 @@ export default function BookEventoPage({ params }: { params: Promise<{ id: strin
   const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/eventos/${id}`).then((r) => r.json()).then(setEvento);
+    fetch(`/api/eventos/${id}`)
+      .then((r) => r.json())
+      .then((ev: Evento) => setEvento(comDadosCalculados(ev)));
     fetch(`/api/eventos/${id}/kits`).then((r) => r.json()).then(setKits);
   }, [id]);
 
