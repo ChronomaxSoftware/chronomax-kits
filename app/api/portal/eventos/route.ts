@@ -27,6 +27,7 @@ export async function GET() {
     data_entrega: string | null;
     hora_entrega: string | null;
     usuarios_evento: string | null;
+    datas_horarios_retirada: string | null;
     obs_recebimento: string | null;
     obs_em: string | null;
     confirmado_em: string | null;
@@ -34,7 +35,7 @@ export async function GET() {
     obs_devolucao: string | null;
   }>(
     `SELECT e.id, e.numero, e.nome, e.data, e.cidade, e.uf, e.local_entrega, e.data_entrega, e.hora_entrega,
-            e.usuarios_evento, et.obs_recebimento, et.obs_em, et.confirmado_em,
+            e.usuarios_evento, e.datas_horarios_retirada, et.obs_recebimento, et.obs_em, et.confirmado_em,
             et.devolvido_em, et.obs_devolucao
      FROM evento_tecnicos et JOIN eventos e ON e.id = et.evento_id
      WHERE et.tecnico_id = ?`,

@@ -10,6 +10,7 @@ import SeletorEquipamentosProduto, { EquipamentoResumo } from "@/components/equi
 import CardEnvioProva from "@/components/envios/CardEnvioProva";
 import CardKitsProva from "@/components/kits/CardKitsProva";
 import { equipamentosBook } from "@/lib/book-equipamentos";
+import EditorDatasRetirada from "@/components/book/EditorDatasRetirada";
 
 type Evento = {
   id: number;
@@ -409,14 +410,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
           <Card titulo="📘 Book — Local da retirada">
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Datas e horários (1 por linha)</label>
-                <textarea
-                  value={datasHorariosRetirada}
-                  onChange={(e) => setDatasHorariosRetirada(e.target.value)}
-                  rows={4}
-                  placeholder="28 Agosto: 10h às 19h&#10;29 Agosto: 10h às 19h&#10;30 Agosto: 10h às 18h"
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-                />
+                <label className="block text-xs text-slate-400 mb-1">Datas e horários</label>
+                <EditorDatasRetirada value={datasHorariosRetirada} onChange={setDatasHorariosRetirada} />
               </div>
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1">

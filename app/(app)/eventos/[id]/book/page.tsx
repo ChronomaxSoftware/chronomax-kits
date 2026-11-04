@@ -3,6 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { enderecoRetiradaBook, equipamentosBook } from "@/lib/book-equipamentos";
+import { chegadaPrimeiroDia, textoChegada } from "@/lib/datas-retirada";
 
 type Tecnico = { id: number; nome: string; telefone: string | null };
 type Produto = { id: number; nome: string; quantidade: number };
@@ -98,6 +99,8 @@ function montarTexto(ev: Evento): string {
     if (dh.length > 0) {
       linhas.push(`Datas e horários:`);
       dh.forEach((l) => linhas.push(`• ${l}`));
+      const chegada = chegadaPrimeiroDia(ev.datas_horarios_retirada);
+      if (chegada) linhas.push(`⏰ *${textoChegada(chegada)}*`);
     }
     if (ev.endereco_retirada) {
       linhas.push(`Local:`);
@@ -211,6 +214,7 @@ export default function BookEventoPage({ params }: { params: Promise<{ id: strin
 
   const tecnicosComTel = evento.tecnicos.filter((t) => digitos(t.telefone).length >= 10);
   const dh = linhasNaoVazias(evento.datas_horarios_retirada);
+  const chegada = chegadaPrimeiroDia(evento.datas_horarios_retirada);
   const cronograma = linhasNaoVazias(evento.cronograma_evento);
   const passos = linhasNaoVazias(evento.passo_a_passo_kits);
 
@@ -355,6 +359,7 @@ export default function BookEventoPage({ params }: { params: Promise<{ id: strin
                   <>
                     <p className="font-bold mb-2">DATAS E HORÁRIOS</p>
                     {dh.map((l, i) => <p key={i} className="text-slate-200">{l}</p>)}
+                    {chegada && <p className="mt-2 font-bold text-amber-300">⏰ {textoChegada(chegada)}</p>}
                   </>
                 )}
                 {evento.endereco_retirada && (
