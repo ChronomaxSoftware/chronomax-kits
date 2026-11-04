@@ -8,6 +8,7 @@ import PainelConferencia from "@/components/staff/PainelConferencia";
 import { TipoEquipamento, tipoDeProduto } from "@/lib/equipamentos";
 import SeletorEquipamentosProduto, { EquipamentoResumo } from "@/components/equipamentos/SeletorEquipamentosProduto";
 import CardEnvioProva from "@/components/envios/CardEnvioProva";
+import CardKitsProva from "@/components/kits/CardKitsProva";
 
 type Evento = {
   id: number;
@@ -97,12 +98,6 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
   const [urlSiteOficial, setUrlSiteOficial] = useState("");
   const [linksEvento, setLinksEvento] = useState("");
   const [usuariosEvento, setUsuariosEvento] = useState("");
-  type Kit = { id: number; nome: string; descricao: string | null; imagem_path: string | null };
-  const [kits, setKits] = useState<Kit[]>([]);
-  const [novoKitNome, setNovoKitNome] = useState("");
-  const [novoKitDescricao, setNovoKitDescricao] = useState("");
-  const [novoKitImagem, setNovoKitImagem] = useState<File | null>(null);
-  const [enviandoKit, setEnviandoKit] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [loginsCopiados, setLoginsCopiados] = useState(false);
@@ -146,7 +141,6 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
       setLinksEvento(ev.links_evento || "");
       setUsuariosEvento(ev.usuarios_evento || "");
     });
-    fetch(`/api/eventos/${id}/kits`).then((r) => r.json()).then(setKits);
     carregarInventario();
   }, [id]);
 
@@ -168,33 +162,6 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
     if (!t || q <= 0) continue;
     const atual = pedidoPorTipo.get(t);
     pedidoPorTipo.set(t, { qtd: (atual?.qtd || 0) + q, primeiroProduto: atual?.primeiroProduto ?? p.id });
-  }
-
-  async function carregarKits() {
-    const r = await fetch(`/api/eventos/${id}/kits`);
-    setKits(await r.json());
-  }
-
-  async function adicionarKit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!novoKitNome.trim()) return;
-    setEnviandoKit(true);
-    const fd = new FormData();
-    fd.append("nome", novoKitNome.trim());
-    if (novoKitDescricao.trim()) fd.append("descricao", novoKitDescricao.trim());
-    if (novoKitImagem) fd.append("imagem", novoKitImagem);
-    await fetch(`/api/eventos/${id}/kits`, { method: "POST", body: fd });
-    setNovoKitNome("");
-    setNovoKitDescricao("");
-    setNovoKitImagem(null);
-    setEnviandoKit(false);
-    carregarKits();
-  }
-
-  async function removerKit(kitId: number) {
-    if (!confirm("Remover este kit?")) return;
-    await fetch(`/api/eventos/${id}/kits/${kitId}`, { method: "DELETE" });
-    carregarKits();
   }
 
   function toggleTecnico(tid: number) {
@@ -533,64 +500,7 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
             </div>
           </Card>
 
-          <Card titulo="📘 Book — Tipos de Kit (com fotos)">
-            <form onSubmit={adicionarKit} className="space-y-2 mb-3">
-              <input
-                value={novoKitNome}
-                onChange={(e) => setNovoKitNome(e.target.value)}
-                placeholder="Nome do kit (ex: INSCRIÇÃO ESSENCIAL)"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-              />
-              <textarea
-                value={novoKitDescricao}
-                onChange={(e) => setNovoKitDescricao(e.target.value)}
-                placeholder="Descrição (ex: Camiseta Runner + Número de peito (chip) + Medalha conclusão...)"
-                rows={2}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-              />
-              <div className="flex gap-2 items-center">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setNovoKitImagem(e.target.files?.[0] || null)}
-                  className="text-xs text-slate-300 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-slate-700 file:text-white file:cursor-pointer"
-                />
-                <button
-                  type="submit"
-                  disabled={enviandoKit || !novoKitNome.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white px-4 py-1.5 rounded text-sm whitespace-nowrap"
-                >
-                  {enviandoKit ? "Enviando..." : "+ Adicionar"}
-                </button>
-              </div>
-            </form>
-
-            {kits.length === 0 ? (
-              <p className="text-xs text-slate-400">Nenhum kit cadastrado ainda</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {kits.map((k) => (
-                  <div key={k.id} className="bg-slate-900 rounded-lg p-2 relative">
-                    {k.imagem_path && (
-                      <img
-                        src={`/api/uploads/${k.imagem_path}`}
-                        alt={k.nome}
-                        className="w-full h-32 object-cover rounded mb-2"
-                      />
-                    )}
-                    <p className="text-sm text-white font-semibold">{k.nome}</p>
-                    {k.descricao && <p className="text-xs text-slate-400 line-clamp-2 mt-1">{k.descricao}</p>}
-                    <button
-                      onClick={() => removerKit(k.id)}
-                      className="absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 text-white text-xs px-2 py-0.5 rounded"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+          <CardKitsProva eventoId={Number(id)} />
 
           <Card titulo="📘 Book — Links">
             <div className="space-y-3">

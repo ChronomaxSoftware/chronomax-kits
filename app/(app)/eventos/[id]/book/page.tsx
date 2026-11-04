@@ -5,7 +5,7 @@ import Link from "next/link";
 
 type Tecnico = { id: number; nome: string; telefone: string | null };
 type Produto = { id: number; nome: string; quantidade: number };
-type Kit = { id: number; nome: string; descricao: string | null; imagem_path: string | null };
+type Kit = { id: number; nome: string; descricao: string | null; foto_url: string | null };
 
 type Evento = {
   id: number;
@@ -452,9 +452,7 @@ export default function BookEventoPage({ params }: { params: Promise<{ id: strin
           <div className="grid grid-cols-2 gap-4 mt-6">
             {kits.map((k) => (
               <div key={k.id} className="bg-orange-700/30 border border-orange-600/50 rounded-lg overflow-hidden">
-                {k.imagem_path && (
-                  <img src={`/api/uploads/${k.imagem_path}`} alt={k.nome} className="w-full h-56 object-cover" />
-                )}
+                {k.foto_url && <img src={k.foto_url} alt={k.nome} className="w-full h-56 object-cover" />}
                 <div className="p-4">
                   <p className="text-white font-bold text-center mb-2">{k.nome}</p>
                   {k.descricao && <p className="text-xs text-slate-100 text-center">{k.descricao}</p>}
