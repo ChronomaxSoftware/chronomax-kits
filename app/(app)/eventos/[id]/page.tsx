@@ -11,6 +11,7 @@ import CardEnvioProva from "@/components/envios/CardEnvioProva";
 import CardKitsProva from "@/components/kits/CardKitsProva";
 import { equipamentosBook } from "@/lib/book-equipamentos";
 import EditorDatasRetirada from "@/components/book/EditorDatasRetirada";
+import { diaDaEntregaAntiga, entregaDoPrimeiroDia } from "@/lib/datas-retirada";
 
 type Evento = {
   id: number;
@@ -75,8 +76,6 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
 
   const [tecnicosSel, setTecnicosSel] = useState<Set<number>>(new Set());
   const [produtosSel, setProdutosSel] = useState<Map<number, number>>(new Map());
-  const [dataEntrega, setDataEntrega] = useState("");
-  const [horaEntrega, setHoraEntrega] = useState("");
   const [localEntrega, setLocalEntrega] = useState("");
   const [briefingData, setBriefingData] = useState("");
   const [briefingHora, setBriefingHora] = useState("");
@@ -115,8 +114,6 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
       const map = new Map<number, number>();
       ev.produtos.forEach((p: { id: number; quantidade: number }) => map.set(p.id, p.quantidade));
       setProdutosSel(map);
-      setDataEntrega(ev.data_entrega || "");
-      setHoraEntrega(ev.hora_entrega || "");
       setLocalEntrega(ev.local_entrega || "");
       setBriefingData(ev.briefing_data || "");
       setBriefingHora(ev.briefing_hora || "");
@@ -124,7 +121,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
       setObservacoes(ev.observacoes || "");
       setQtdCelulares(ev.qtd_celulares || 0);
       setDiasEntrega(ev.dias_entrega || 0);
-      setDatasHorariosRetirada(ev.datas_horarios_retirada || "");
+      // prova antiga só com data/hora da entrega: vira o 1º dia do editor
+      setDatasHorariosRetirada(ev.datas_horarios_retirada || diaDaEntregaAntiga(ev.data_entrega, ev.hora_entrega));
       setEnderecoRetirada(ev.endereco_retirada || "");
       setAvisosRetirada(ev.avisos_retirada || "");
       setObsRetirada(ev.obs_retirada || "");
@@ -187,8 +185,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        data_entrega: dataEntrega || null,
-        hora_entrega: horaEntrega || null,
+        // data e hora da entrega = 1º dia dos Datas e horários (home, portal e TXT usam esses campos)
+        ...entregaDoPrimeiroDia(datasHorariosRetirada),
         local_entrega: localEntrega || null,
         briefing_data: briefingData || null,
         briefing_hora: briefingHora || null,
@@ -303,24 +301,6 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Data da entrega</label>
-                <input
-                  type="date"
-                  value={dataEntrega}
-                  onChange={(e) => setDataEntrega(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Hora</label>
-                <input
-                  type="time"
-                  value={horaEntrega}
-                  onChange={(e) => setHoraEntrega(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
-                />
-              </div>
-              <div>
                 <label className="block text-xs text-amber-400 mb-1">📘 Data do briefing</label>
                 <input
                   type="date"
@@ -349,7 +329,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
               </div>
               <div className="col-span-2">
                 <label className="block text-xs text-slate-400 mb-1">
-                  Datas e horários da retirada <span className="text-slate-500">(o mesmo do 📘 Book — Local da retirada)</span>
+                  Datas e horários da entrega/retirada{" "}
+                  <span className="text-slate-500">(o 1º dia é a data e hora da entrega; o mesmo do 📘 Book — Local da retirada)</span>
                 </label>
                 <EditorDatasRetirada value={datasHorariosRetirada} onChange={setDatasHorariosRetirada} />
               </div>

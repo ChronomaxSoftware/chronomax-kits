@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chegadaPrimeiroDia, converterTextoColado, formatarDia, formatarLinhas, lerLinha, lerLinhas, textoChegada } from "./datas-retirada";
+import { chegadaPrimeiroDia, converterTextoColado, diaDaEntregaAntiga, entregaDoPrimeiroDia, formatarDia, formatarLinhas, lerLinha, lerLinhas, textoChegada } from "./datas-retirada";
 
 describe("datas e horários da retirada", () => {
   it("monta a linha no formato do modelo", () => {
@@ -62,5 +62,26 @@ describe("converterTextoColado", () => {
   it("o que não é data fica como texto", () => {
     expect(converterTextoColado("Retirada só com documento")).toEqual([{ texto: "Retirada só com documento" }]);
     expect(converterTextoColado("")).toEqual([]);
+  });
+});
+
+describe("data e hora da entrega vêm do 1º dia", () => {
+  it("1º dia (o mais cedo) vira data_entrega/hora_entrega", () => {
+    expect(entregaDoPrimeiroDia("07/11/2026 das 10h00 às 21h00\n06/11/2026 das 12h00 às 21h00")).toEqual({
+      data_entrega: "2026-11-06",
+      hora_entrega: "12:00",
+    });
+    expect(entregaDoPrimeiroDia("06/11/2026")).toEqual({ data_entrega: "2026-11-06", hora_entrega: null });
+    expect(entregaDoPrimeiroDia("")).toEqual({ data_entrega: null, hora_entrega: null });
+    expect(entregaDoPrimeiroDia("só texto")).toEqual({ data_entrega: null, hora_entrega: null });
+  });
+
+  it("prova antiga: data/hora da entrega viram o 1º dia do editor (e voltam iguais)", () => {
+    const linha = diaDaEntregaAntiga("2026-11-04", "10:00");
+    expect(linha).toBe("04/11/2026 a partir das 10h00");
+    expect(entregaDoPrimeiroDia(linha)).toEqual({ data_entrega: "2026-11-04", hora_entrega: "10:00" });
+    expect(diaDaEntregaAntiga("04/11/2026", "9:30")).toBe("04/11/2026 a partir das 09h30");
+    expect(diaDaEntregaAntiga("2026-11-04", null)).toBe("04/11/2026");
+    expect(diaDaEntregaAntiga(null, "10:00")).toBe("");
   });
 });

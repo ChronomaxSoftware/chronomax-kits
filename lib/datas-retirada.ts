@@ -74,7 +74,10 @@ export function lerLinha(linha: string, anoPadrao: number = new Date().getFullYe
   const inicio = lerHora(m[4]);
   const fim = lerHora(m[5]);
   if ((m[4] && !inicio) || (m[5] && !fim)) return { texto: s };
-  return { data: `${ano}-${pad(mes)}-${pad(dia)}`, inicio: inicio ?? "", fim: fim ?? "" };
+  const data = `${ano}-${pad(mes)}-${pad(dia)}`;
+  // um horário só ("a partir das 10h00") é a abertura
+  if (!inicio && fim) return { data, inicio: fim, fim: "" };
+  return { data, inicio: inicio ?? "", fim: fim ?? "" };
 }
 
 export function lerLinhas(texto: string | null | undefined, anoPadrao?: number): LinhaRetirada[] {
@@ -97,6 +100,34 @@ export function converterTextoColado(texto: string, anoPadrao?: number): LinhaRe
     // cada data (dd/mm ou dd/mm/aaaa) começa um dia novo
     .replace(/\s+(?=\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b)/g, "\n");
   return lerLinhas(limpo, anoPadrao).map((l) => (ehDia(l) ? l : { texto: l.texto.replace(/\s+/g, " ") }));
+}
+
+/**
+ * "Data da entrega" e "Hora" (eventos.data_entrega / hora_entrega) saem do 1º dia dos
+ * Datas e horários: data ISO (AAAA-MM-DD, como o input date gravava) e abertura "HH:MM".
+ */
+export function entregaDoPrimeiroDia(
+  texto: string | null | undefined,
+  anoPadrao?: number
+): { data_entrega: string | null; hora_entrega: string | null } {
+  const d = lerLinhas(texto, anoPadrao)
+    .filter(ehDia)
+    .sort((a, b) => (a.data + (a.inicio || "99")).localeCompare(b.data + (b.inicio || "99")))[0];
+  return { data_entrega: d?.data ?? null, hora_entrega: d?.inicio || null };
+}
+
+/**
+ * Prova antiga com data/hora da entrega e sem Datas e horários: vira o 1º dia do editor
+ * (ex.: "2026-11-04" + "10:00" → "04/11/2026 a partir das 10h00"). Sem data → "".
+ */
+export function diaDaEntregaAntiga(dataEntrega: string | null | undefined, horaEntrega: string | null | undefined): string {
+  const s = String(dataEntrega || "").trim();
+  let iso = /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+  const br = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  if (br) iso = `${br[3]}-${pad(Number(br[2]))}-${pad(Number(br[1]))}`;
+  if (!iso) return "";
+  const hora = /^\d{1,2}:\d{2}$/.test(String(horaEntrega || "").trim()) ? String(horaEntrega).trim().padStart(5, "0") : "";
+  return formatarDia({ data: iso, inicio: hora, fim: "" });
 }
 
 export type Chegada = { data: string; dataRotulo: string; abertura: string; chegada: string; horasAntes: number };
