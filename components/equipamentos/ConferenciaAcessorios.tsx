@@ -12,7 +12,7 @@ export type ProvaAcessoriosTela = {
   data: string;
   uf: string | null;
   atrasada: boolean;
-  itens: { produto_id: number; nome: string; quantidade: number }[];
+  itens: { produto_id: number; nome: string; quantidade: number; sem_patrimonio?: boolean }[];
   base: { id: number; nome: string } | null;
 };
 
@@ -93,6 +93,14 @@ export default function ConferenciaAcessorios({
             <li key={i.produto_id} className="px-4 py-3 flex items-center gap-3">
               <span className="flex-1 min-w-0 text-sm">
                 {i.nome} <span className="text-xs text-slate-400">· foram {i.quantidade}</span>
+                {i.sem_patrimonio && (
+                  <span
+                    className="ml-1 text-[10px] rounded bg-slate-700 text-slate-300 px-1.5 py-0.5"
+                    title="Equipamento sem patrimônio separado: confira pela quantidade"
+                  >
+                    sem patrimônio
+                  </span>
+                )}
               </span>
               <label className="text-xs text-slate-400 flex items-center gap-2">
                 voltaram

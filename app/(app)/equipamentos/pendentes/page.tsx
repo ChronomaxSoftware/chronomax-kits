@@ -116,7 +116,7 @@ export default function PendentesPage() {
       <div className="pt-2">
         <h2 className="text-lg font-semibold">Acessórios a conferir</h2>
         <p className="text-slate-400 text-sm">
-          Extensão, régua, mouse… (por quantidade, do card Produtos). Digite quantos voltaram de cada prova; o que faltou
+          Extensão, régua, mouse… e equipamento sem patrimônio separado (por quantidade, do card Produtos). Digite quantos voltaram de cada prova; o que faltou
           pode ser descontado do estoque da base.
         </p>
       </div>

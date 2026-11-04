@@ -12,6 +12,8 @@ export type ItemEmCampo = {
   numero_serie: string | null;
   saida_em: string | null;
   saida_por?: string | null;
+  /** false = separado para prova que já saiu, sem 📦 Saída registrada (registrada junto com o retorno). */
+  saida_registrada?: boolean;
   /** Só na aba de pendentes (lista de várias provas). */
   evento_ref?: string | null;
 };
@@ -137,9 +139,17 @@ export default function ConferenciaRetorno({
                   </span>
                   <div className="text-xs text-slate-500">
                     {mostrarProva && i.evento_ref ? `${i.evento_ref} · ` : ""}
-                    Saiu em {formatarDataHora(i.saida_em)}
-                    {dias !== null && dias > 0 ? ` (há ${dias} dia${dias > 1 ? "s" : ""})` : ""}
-                    {i.saida_por ? ` · por ${i.saida_por}` : ""}
+                    {i.saida_em ? (
+                      <>
+                        Saiu em {formatarDataHora(i.saida_em)}
+                        {dias !== null && dias > 0 ? ` (há ${dias} dia${dias > 1 ? "s" : ""})` : ""}
+                        {i.saida_por ? ` · por ${i.saida_por}` : ""}
+                      </>
+                    ) : (
+                      <span className="text-amber-300/90" title="Foi separado para a prova, mas a 📦 Saída não foi registrada. Ao dar o retorno, a saída é registrada junto.">
+                        Separado para a prova · saída não registrada
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0" role="group" aria-label={`Conferência de ${i.patrimonio}`}>

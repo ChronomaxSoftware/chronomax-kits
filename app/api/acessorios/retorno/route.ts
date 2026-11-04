@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbAll, dbGet, dbTransaction, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { tipoDeProduto } from "@/lib/equipamentos";
-import { acessoriosPendentes, faltou, type LinhaAcessorio } from "@/lib/retorno-acessorios";
+import { acessoriosPendentes, faltou, qtdConferirPorContagem, type LinhaAcessorio } from "@/lib/retorno-acessorios";
+import { comPatrimonios, patrimoniosPorProvaTipo } from "@/lib/retorno-acessorios-db";
 
 const SQL_LINHAS = `SELECT v.id AS evento_id, v.numero AS evento_numero, v.nome AS evento_nome, v.data AS evento_data,
          v.uf AS evento_uf, p.id AS produto_id, p.nome AS produto_nome, ep.quantidade, ep.devolucao_em
@@ -13,7 +14,8 @@ const SQL_LINHAS = `SELECT v.id AS evento_id, v.numero AS evento_numero, v.nome 
 // GET /api/acessorios/retorno — provas com acessório a conferir (+ base da prova pela UF)
 export async function GET() {
   await initDB();
-  const provas = acessoriosPendentes(await dbAll<LinhaAcessorio>(SQL_LINHAS));
+  // equipamento (celular, notebook…) entra só com o que não tem patrimônio separado
+  const provas = acessoriosPendentes(await comPatrimonios(await dbAll<LinhaAcessorio>(SQL_LINHAS)));
   const bases = await dbAll<{ id: number; nome: string; uf: string }>("SELECT id, nome, uf FROM bases");
   const baseDaUf = (uf: string | null) =>
     bases.find((b) => b.uf.trim().toUpperCase() === (uf || "").trim().toUpperCase()) || null;
@@ -52,6 +54,7 @@ export async function POST(req: NextRequest) {
   const descontar = body.descontar === true && !!base;
 
   const agora = new Date().toISOString();
+  const patrimonios = await patrimoniosPorProvaTipo();
   try {
     const descontados = await dbTransaction(async (tx) => {
       let total = 0;
@@ -62,9 +65,13 @@ export async function POST(req: NextRequest) {
           args: [eventoId, it.produto_id],
         });
         const row = r.rows[0] as unknown as { quantidade: number; devolucao_em: string | null; nome: string } | undefined;
-        if (!row || tipoDeProduto(row.nome)) throw new Error("ITEM_INVALIDO");
+        if (!row) throw new Error("ITEM_INVALIDO");
         if (row.devolucao_em) throw new Error("JA_CONFERIDO");
-        const falta = faltou(Number(row.quantidade), it.qtd_devolvida);
+        // equipamento: confere-se por contagem só o que não tem patrimônio (os patrimônios voltam pela lista)
+        const tipo = tipoDeProduto(row.nome);
+        const esperado = qtdConferirPorContagem(row.nome, Number(row.quantidade), tipo ? patrimonios.get(`${eventoId}:${tipo}`) ?? 0 : 0);
+        if (esperado <= 0) throw new Error("ITEM_INVALIDO");
+        const falta = faltou(esperado, it.qtd_devolvida);
         const desconta = descontar && falta > 0;
         await tx.execute({
           sql: `UPDATE evento_produtos SET qtd_devolvida = ?, devolucao_em = ?, devolucao_por = ?, devolucao_obs = ?, descontado = ?
