@@ -12,6 +12,8 @@ type Envio = {
   material_por: string | null;
   numeros_em: string | null;
   numeros_por: string | null;
+  devolvido_em: string | null;
+  devolvido_por: string | null;
   obs: string | null;
 };
 
@@ -142,14 +144,22 @@ export default function CardEnvioProva({ eventoId, tecnicos }: { eventoId: numbe
       <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
         <span
           className={`px-2 py-0.5 rounded-full ${
-            situacao === "enviado"
+            situacao === "devolvido"
               ? "bg-emerald-600/30 text-emerald-300"
-              : situacao === "parcial"
+              : situacao === "enviado"
+                ? "bg-violet-500/20 text-violet-300"
+                : situacao === "parcial"
                 ? "bg-amber-500/20 text-amber-300"
                 : "bg-slate-700 text-slate-300"
           }`}
         >
-          {situacao === "enviado" ? "✅ Tudo enviado" : situacao === "parcial" ? "Enviado em parte" : "Aguardando envio"}
+          {situacao === "devolvido"
+            ? "✅ Concluído (material devolvido)"
+            : situacao === "enviado"
+              ? "↩️ Aguardando devolução"
+              : situacao === "parcial"
+                ? "Enviado em parte"
+                : "Aguardando envio"}
         </span>
         {envio.data_envio && <span className="text-slate-400">Envio em {rotuloDataEnvio(envio.data_envio)}</span>}
         <Link href="/envios" className="ml-auto text-blue-400 hover:text-blue-300">
@@ -163,6 +173,10 @@ export default function CardEnvioProva({ eventoId, tecnicos }: { eventoId: numbe
         </li>
         <li>
           ✅ Números: {envio.numeros_em ? <span className="text-emerald-300">{quando(envio.numeros_em, envio.numeros_por)}</span> : "ainda não"}
+        </li>
+        <li>
+          ↩️ Devolvido:{" "}
+          {envio.devolvido_em ? <span className="text-emerald-300">{quando(envio.devolvido_em, envio.devolvido_por)}</span> : "ainda não"}
         </li>
       </ul>
 

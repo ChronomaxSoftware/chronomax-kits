@@ -267,6 +267,8 @@ CREATE TABLE IF NOT EXISTS envio_status (
   material_por TEXT,
   numeros_em TEXT,
   numeros_por TEXT,
+  devolvido_em TEXT,
+  devolvido_por TEXT,
   obs TEXT,
   obs_em TEXT,
   obs_por TEXT,
@@ -491,6 +493,9 @@ CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
     ["users", "perfil", "ALTER TABLE users ADD COLUMN perfil TEXT DEFAULT 'total'"],
     // Endereço do técnico (para onde vai o material na aba Envios)
     ["tecnicos", "endereco", "ALTER TABLE tecnicos ADD COLUMN endereco TEXT"],
+    // Aba Envios: material devolvido pelo técnico depois da prova
+    ["envio_status", "devolvido_em", "ALTER TABLE envio_status ADD COLUMN devolvido_em TEXT"],
+    ["envio_status", "devolvido_por", "ALTER TABLE envio_status ADD COLUMN devolvido_por TEXT"],
     // Tutorial do portal mostrado no primeiro acesso do técnico
     ["tecnicos", "tutorial_visto_em", "ALTER TABLE tecnicos ADD COLUMN tutorial_visto_em TEXT"],
     // Aviso "o app mudou" (nome/ícone novos) já confirmado pelo técnico

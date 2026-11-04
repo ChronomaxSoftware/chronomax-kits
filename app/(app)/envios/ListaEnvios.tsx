@@ -37,6 +37,8 @@ type Prova = {
   material_por: string | null;
   numeros_em: string | null;
   numeros_por: string | null;
+  devolvido_em: string | null;
+  devolvido_por: string | null;
   obs: string | null;
   obs_em: string | null;
   obs_por: string | null;
@@ -55,7 +57,8 @@ const DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sáb
 const SELO: Record<ReturnType<typeof situacaoEnvio>, { txt: string; cls: string }> = {
   pendente: { txt: "A enviar", cls: "bg-amber-500/15 text-amber-300 border-amber-500/40" },
   parcial: { txt: "Enviado em parte", cls: "bg-blue-500/15 text-blue-300 border-blue-500/40" },
-  enviado: { txt: "Tudo enviado", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" },
+  enviado: { txt: "↩️ Aguardando devolução", cls: "bg-violet-500/15 text-violet-300 border-violet-500/40" },
+  devolvido: { txt: "✅ Devolvido", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/40" },
 };
 
 function tituloDia(dia: Date, hoje: Date): string {
@@ -71,7 +74,7 @@ export default function ListaEnvios({ podeAbrirProva }: { podeAbrirProva: boolea
   const [erro, setErro] = useState("");
   const [soPendentes, setSoPendentes] = useState(true);
   const [busca, setBusca] = useState("");
-  const [verEnviadas, setVerEnviadas] = useState(false);
+  const [verConcluidas, setVerConcluidas] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
@@ -99,7 +102,11 @@ export default function ListaEnvios({ podeAbrirProva }: { podeAbrirProva: boolea
 
   if (!provas && !erro) return <p className="text-slate-400 text-sm">Carregando…</p>;
 
-  const vazio = grupos.atrasadas.length === 0 && grupos.dias.length === 0 && grupos.semData.length === 0;
+  const vazio =
+    grupos.atrasadas.length === 0 &&
+    grupos.dias.length === 0 &&
+    grupos.semData.length === 0 &&
+    grupos.aguardandoDevolucao.length === 0;
   const card = (p: Prova) => <CardEnvio key={p.id} prova={p} podeAbrirProva={podeAbrirProva} onSalvo={atualizar} />;
 
   return (
@@ -165,12 +172,19 @@ export default function ListaEnvios({ podeAbrirProva }: { podeAbrirProva: boolea
         </section>
       )}
 
-      {grupos.enviadas.length > 0 && (
+      {grupos.aguardandoDevolucao.length > 0 && (
         <section>
-          <button onClick={() => setVerEnviadas((v) => !v)} className="text-sm text-slate-400 hover:text-white">
-            {verEnviadas ? "▾" : "▸"} Já enviados ({grupos.enviadas.length})
+          <h2 className="text-sm font-semibold text-violet-300 mb-2">↩️ Aguardando devolução do material</h2>
+          <div className="space-y-3">{grupos.aguardandoDevolucao.map(card)}</div>
+        </section>
+      )}
+
+      {grupos.concluidas.length > 0 && (
+        <section>
+          <button onClick={() => setVerConcluidas((v) => !v)} className="text-sm text-slate-400 hover:text-white">
+            {verConcluidas ? "▾" : "▸"} Concluídas — material devolvido ({grupos.concluidas.length})
           </button>
-          {verEnviadas && <div className="space-y-3 mt-3">{grupos.enviadas.map(card)}</div>}
+          {verConcluidas && <div className="space-y-3 mt-3">{grupos.concluidas.map(card)}</div>}
         </section>
       )}
     </div>
@@ -205,6 +219,8 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
         material_por: d.material_por,
         numeros_em: d.numeros_em,
         numeros_por: d.numeros_por,
+        devolvido_em: d.devolvido_em,
+        devolvido_por: d.devolvido_por,
         obs: d.obs,
         obs_em: d.obs_em,
         obs_por: d.obs_por,
@@ -219,7 +235,15 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
   }
 
   function alternar(etapa: EtapaEnvio, marcado: boolean) {
-    if (!marcado && !confirm(etapa === "material" ? 'Desmarcar "Material enviado"?' : 'Desmarcar "Números enviados"?')) return;
+    const pergunta =
+      etapa === "material"
+        ? p.devolvido_em
+          ? 'Desmarcar "Material enviado"? A devolução também será desmarcada.'
+          : 'Desmarcar "Material enviado"?'
+        : etapa === "numeros"
+          ? 'Desmarcar "Números enviados"?'
+          : 'Desmarcar "Material devolvido"?';
+    if (!marcado && !confirm(pergunta)) return;
     enviar({ etapa, marcado });
   }
 
@@ -363,6 +387,18 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
           ocupado={ocupado}
           onClick={() => alternar("numeros", !p.numeros_em)}
         />
+        {/* Devolução: só depois que o material foi enviado */}
+        {p.material_em && (
+          <div className="sm:col-span-2">
+            <BotaoEtapa
+              rotulo="↩️ Material devolvido"
+              em={p.devolvido_em}
+              por={p.devolvido_por}
+              ocupado={ocupado}
+              onClick={() => alternar("devolvido", !p.devolvido_em)}
+            />
+          </div>
+        )}
       </div>
 
       <div>

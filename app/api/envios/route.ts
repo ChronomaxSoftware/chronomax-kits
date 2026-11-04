@@ -17,6 +17,8 @@ type Linha = QtdBook & {
   material_por: string | null;
   numeros_em: string | null;
   numeros_por: string | null;
+  devolvido_em: string | null;
+  devolvido_por: string | null;
   obs: string | null;
   obs_em: string | null;
   obs_por: string | null;
@@ -54,6 +56,7 @@ export async function GET() {
             e.qtd_celulares, e.qtd_celulares_grupo_online, e.qtd_celulares_produtos_online,
             e.qtd_roteadores, e.qtd_totens, e.qtd_notebooks,
             v.data_envio, v.endereco, v.material_em, v.material_por, v.numeros_em, v.numeros_por,
+            v.devolvido_em, v.devolvido_por,
             v.obs, v.obs_em, v.obs_por
      FROM envio_status v JOIN eventos e ON e.id = v.evento_id`,
   );
