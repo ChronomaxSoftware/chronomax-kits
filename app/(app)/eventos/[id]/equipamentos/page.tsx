@@ -6,6 +6,7 @@ import { TIPOS_EQUIPAMENTO, TipoEquipamento, tipoDeProduto } from "@/lib/equipam
 import { normalizarNome } from "@/lib/tecnico-match";
 import ConferenciaRetorno from "@/components/equipamentos/ConferenciaRetorno";
 import { pendenteDeRetorno } from "@/lib/retorno-equipamentos";
+import { SeloChip } from "@/components/equipamentos/ListaPatrimonios";
 import { Aviso, EVENTO_EQUIPAMENTOS_MUDOU, botaoPrimario, campo } from "@/components/equipamentos/ui";
 
 type Equipamento = {
@@ -13,6 +14,7 @@ type Equipamento = {
   tipo: string;
   patrimonio: string;
   numero_chip: string | null;
+  operadora: string | null;
   numero_serie: string | null;
   status: string;
   evento_id: number | null;
@@ -46,8 +48,9 @@ function Secao({ titulo, subtitulo, children, acao }: { titulo: string; subtitul
   );
 }
 
+/** Tipo + série (o chip aparece ao lado, no <SeloChip>). */
 function infoEquip(e: Equipamento) {
-  return `${e.tipo}${e.numero_chip || e.numero_serie ? ` · ${e.numero_chip || e.numero_serie}` : ""}`;
+  return `${e.tipo}${e.numero_serie ? ` · ${e.numero_serie}` : ""}`;
 }
 
 export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -280,6 +283,7 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
                     />
                     <span className="font-mono font-semibold">{e.patrimonio}</span>
                     <span className="text-xs text-slate-400 truncate">{infoEquip(e)}</span>
+                    <SeloChip e={e} compacto />
                   </label>
                   <button onClick={() => remover(e)} disabled={ocupado} className="text-xs text-red-400 hover:text-red-300 shrink-0 disabled:opacity-50">
                     Tirar da prova
@@ -372,6 +376,7 @@ export default function EquipamentosDaProvaPage({ params }: { params: Promise<{ 
                       {infoEquip(e)}
                       {e.base_nome ? ` · ${e.base_nome}` : ""}
                     </span>
+                    <SeloChip e={e} compacto />
                   </label>
                 </li>
               ))}

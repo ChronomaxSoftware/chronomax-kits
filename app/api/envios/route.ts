@@ -37,7 +37,7 @@ type Tec = {
   funcao: string | null;
 };
 type Prod = { evento_id: number; nome: string; quantidade: number };
-type Equip = { evento_id: number; tipo: string; patrimonio: string; numero_chip: string | null };
+type Equip = { evento_id: number; tipo: string; patrimonio: string; numero_chip: string | null; operadora: string | null; status: string };
 
 /** Tira o evento_id (só serviu para juntar com a prova). */
 function semEvento<T extends { evento_id: number }>(x: T): Omit<T, "evento_id"> {
@@ -81,7 +81,7 @@ export async function GET() {
       ...ids,
     ),
     dbAll<Equip>(
-      `SELECT evento_id, tipo, patrimonio, numero_chip FROM equipamentos
+      `SELECT evento_id, tipo, patrimonio, numero_chip, operadora, status FROM equipamentos
        WHERE evento_id IN (${ph}) ORDER BY tipo, patrimonio`,
       ...ids,
     ),

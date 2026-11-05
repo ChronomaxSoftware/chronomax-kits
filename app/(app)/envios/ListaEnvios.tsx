@@ -13,6 +13,8 @@ import {
   type EtapaEnvio,
 } from "@/lib/envios";
 import { BotaoEtapa } from "../telao/ListaTelao";
+import { patrimoniosPorProduto } from "@/lib/equipamentos";
+import ListaPatrimonios from "@/components/equipamentos/ListaPatrimonios";
 
 type Tecnico = {
   id: number;
@@ -44,7 +46,7 @@ type Prova = {
   obs_por: string | null;
   tecnicos: Tecnico[];
   produtos: { nome: string; quantidade: number }[];
-  equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null }[];
+  equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null; operadora: string | null; status: string }[];
   /** Quantidades do card "📘 Book — Equipamentos" */
   book: { nome: string; quantidade: number }[];
 };
@@ -257,6 +259,7 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
   const local = [p.cidade, p.uf].filter(Boolean).join("/");
   const produtos = p.produtos.filter((x) => x.quantidade > 0);
   const separado = materialSeparado(p);
+  const pats = patrimoniosPorProduto(produtos, p.equipamentos);
 
   return (
     <div className="bg-slate-800 rounded-xl p-4 space-y-3">
@@ -334,23 +337,21 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
           <ul className="space-y-0.5">
             {produtos.map((x) => (
               <li key={x.nome} className="flex justify-between gap-3 text-slate-200">
-                <span>{x.nome}</span>
+                <span className="min-w-0">
+                  {x.nome}
+                  {pats.porProduto.has(x.nome) && (
+                    <ListaPatrimonios lista={pats.porProduto.get(x.nome)!} quantidade={x.quantidade} />
+                  )}
+                </span>
                 <span className="text-white font-medium">{x.quantidade}×</span>
               </li>
             ))}
           </ul>
         )}
-        {p.equipamentos.length > 0 && (
+        {pats.sobra.length > 0 && (
           <div>
-            <p className="text-[11px] uppercase text-slate-500 mb-0.5">Celulares / patrimônios ({p.equipamentos.length})</p>
-            <ul className="flex flex-wrap gap-1.5">
-              {p.equipamentos.map((e) => (
-                <li key={`${e.tipo}-${e.patrimonio}`} className="text-xs rounded bg-slate-700 text-slate-200 px-2 py-0.5">
-                  {e.tipo} {e.patrimonio}
-                  {e.numero_chip ? ` · ${e.numero_chip}` : ""}
-                </li>
-              ))}
-            </ul>
+            <p className="text-[11px] uppercase text-slate-500 mb-0.5">Outros aparelhos (patrimônio)</p>
+            <ListaPatrimonios lista={pats.sobra} />
           </div>
         )}
         {p.book.length > 0 && (

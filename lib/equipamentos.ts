@@ -147,3 +147,80 @@ export function ehErroPatrimonioDuplicado(err: unknown): boolean {
   const s = String(err instanceof Error ? err.message : err);
   return s.includes("UNIQUE") && s.includes("patrimonio");
 }
+
+// ── Chip do aparelho ──
+
+export type InfoChip = {
+  /** null = tipo que não usa chip (tablet, notebook, totem) */
+  temChip: boolean | null;
+  /** "Vivo · (11) 93066-0118", "Vivo (número não cadastrado)", "Sem chip" ou "" */
+  rotulo: string;
+};
+
+/** "11930660118" → "(11) 93066-0118"; outro formato fica como veio. */
+export function formatarNumeroChip(n: string | null | undefined): string {
+  const s = String(n ?? "").trim();
+  const d = s.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return s;
+}
+
+/** Tem chip = tem operadora ou número cadastrado (só celular/roteador). */
+export function infoChip(e: { tipo: string; numero_chip?: string | null; operadora?: string | null }): InfoChip {
+  if (!TIPOS_COM_CHIP.includes(e.tipo)) return { temChip: null, rotulo: "" };
+  const numero = formatarNumeroChip(e.numero_chip);
+  const operadora = String(e.operadora ?? "").trim();
+  if (!numero && !operadora) return { temChip: false, rotulo: "Sem chip" };
+  if (!numero) return { temChip: true, rotulo: `${operadora} (número não cadastrado)` };
+  return { temChip: true, rotulo: operadora ? `${operadora} · ${numero}` : numero };
+}
+
+export type ResumoChips = {
+  celulares: number;
+  comChip: number;
+  semChip: number;
+  /** com chip separados para prova ou em campo */
+  emUso: number;
+  /** com chip disponíveis no estoque */
+  livres: number;
+  /** com chip em manutenção */
+  manutencao: number;
+};
+
+/** Controle dos chips dos celulares do inventário. */
+export function resumoChips(
+  lista: { tipo: string; status: string; numero_chip?: string | null; operadora?: string | null }[]
+): ResumoChips {
+  const cel = lista.filter((e) => e.tipo === "Celular");
+  const com = cel.filter((e) => infoChip(e).temChip);
+  return {
+    celulares: cel.length,
+    comChip: com.length,
+    semChip: cel.length - com.length,
+    emUso: com.filter((e) => e.status === "alocado" || e.status === "em_campo").length,
+    livres: com.filter((e) => e.status === "disponivel").length,
+    manutencao: com.filter((e) => e.status === "manutencao").length,
+  };
+}
+
+/**
+ * Patrimônios de cada linha de produto da prova (Celular → celulares separados…):
+ * `porProduto` por nome do produto, `sobra` = patrimônio sem linha do mesmo tipo.
+ */
+export function patrimoniosPorProduto<P extends { nome: string }, E extends { tipo: string }>(
+  produtos: P[],
+  equipamentos: E[]
+): { porProduto: Map<string, E[]>; sobra: E[] } {
+  const porProduto = new Map<string, E[]>();
+  const usados = new Set<E>();
+  for (const p of produtos) {
+    const tipo = tipoDeProduto(p.nome);
+    if (!tipo || porProduto.has(p.nome)) continue;
+    // um tipo vai para a 1ª linha dele (ex.: "Celular" e "Celular reserva" → a primeira)
+    const lista = equipamentos.filter((e) => e.tipo === tipo && !usados.has(e));
+    lista.forEach((e) => usados.add(e));
+    porProduto.set(p.nome, lista);
+  }
+  return { porProduto, sobra: equipamentos.filter((e) => !usados.has(e)) };
+}
