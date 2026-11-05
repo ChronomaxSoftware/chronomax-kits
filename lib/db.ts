@@ -420,6 +420,25 @@ CREATE TABLE IF NOT EXISTS staff_audit_logs (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_staff_audit_data ON staff_audit_logs(data_hora);
+
+-- Aba Treinamento do portal: vídeos (link do YouTube/Drive) e quem já assistiu
+CREATE TABLE IF NOT EXISTS treinamento_videos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titulo TEXT NOT NULL,
+  descricao TEXT,
+  categoria TEXT,
+  url TEXT NOT NULL,
+  ordem INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS treinamento_assistidos (
+  video_id INTEGER NOT NULL,
+  tecnico_id INTEGER NOT NULL,
+  assistido_em TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (video_id, tecnico_id),
+  FOREIGN KEY (video_id) REFERENCES treinamento_videos(id) ON DELETE CASCADE,
+  FOREIGN KEY (tecnico_id) REFERENCES tecnicos(id) ON DELETE CASCADE
+);
   `);
 
   // ── Migrations (ALTER TABLE) ──
