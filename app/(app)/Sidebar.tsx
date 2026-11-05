@@ -17,6 +17,7 @@ const LINKS = [
   { href: "/staff", label: "Controle de Staff" },
   { href: "/telao", label: "Telão" },
   { href: "/envios", label: "Envios" },
+  { href: "/treinamento", label: "Treinamento" },
   { href: "/config", label: "Configurações" },
 ];
 

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const itens = [
   { href: "/portal", label: "Minhas entregas" },
   { href: "/portal/staff", label: "Controle de Staff" },
+  { href: "/portal/treinamento", label: "🎓 Treinamento" },
 ];
 
 export default function PortalNav() {
