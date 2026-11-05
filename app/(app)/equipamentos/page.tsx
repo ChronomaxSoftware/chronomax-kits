@@ -18,6 +18,9 @@ import {
 } from "@/components/equipamentos/ui";
 import HistoricoEquipamento from "@/components/equipamentos/HistoricoEquipamento";
 import GraficoInventario from "@/components/equipamentos/GraficoInventario";
+import GraficoChips from "@/components/equipamentos/GraficoChips";
+import { SeloChip } from "@/components/equipamentos/ListaPatrimonios";
+import { formatarNumeroChip } from "@/lib/equipamentos";
 import type { EventoPedido } from "@/lib/inventario-resumo";
 
 type Equipamento = {
@@ -245,6 +248,8 @@ export default function EquipamentosPage() {
         <Indicador titulo="Em manutenção" valor={contagem.manutencao} cor="text-amber-300" />
       </div>
 
+      {!carregando && <GraficoChips equipamentos={lista} />}
+
       {!carregando && (
         // /api/eventos devolve também os produtos de cada prova (usados no pedido da semana)
         <GraficoInventario equipamentos={lista} eventos={eventos as unknown as EventoPedido[]} bases={bases} />
@@ -439,11 +444,11 @@ export default function EquipamentosPage() {
                 <div className="text-sm min-w-0">
                   {e.numero_chip ? (
                     <>
-                      <div className="text-slate-200">{e.numero_chip}</div>
+                      <div className="text-slate-200">{formatarNumeroChip(e.numero_chip)}</div>
                       <div className="text-xs text-slate-400">{e.operadora || "Operadora não informada"}</div>
                     </>
                   ) : (
-                    <span className="text-xs text-slate-500">Sem chip</span>
+                    <SeloChip e={e} />
                   )}
                   {e.base_nome && <div className="text-xs text-slate-500">Base: {e.base_nome}/{e.base_uf}</div>}
                 </div>

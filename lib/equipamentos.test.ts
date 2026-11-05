@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatarNumeroChip,
+  infoChip,
+  patrimoniosPorProduto,
+  resumoChips,
   ehErroPatrimonioDuplicado,
   idOuNull,
   lerIdsLote,
@@ -113,5 +117,55 @@ describe("lerItensRetorno", () => {
     expect(lerItensRetorno({})).toBeNull();
     expect(lerItensRetorno({ itens: [{ id: "x", resultado: "ok" }] })).toBeNull();
     expect(lerItensRetorno({ itens: [{ id: 1, resultado: "perdido" }] })).toBeNull();
+  });
+});
+
+
+describe("chip do aparelho", () => {
+  it("formata o número", () => {
+    expect(formatarNumeroChip("11930660118")).toBe("(11) 93066-0118");
+    expect(formatarNumeroChip("+55 11 93066-0118")).toBe("(11) 93066-0118");
+    expect(formatarNumeroChip("5133334444")).toBe("(51) 3333-4444");
+    expect(formatarNumeroChip("123")).toBe("123");
+    expect(formatarNumeroChip(null)).toBe("");
+  });
+
+  it("tem chip = operadora ou número; tablet não usa chip", () => {
+    expect(infoChip({ tipo: "Celular", numero_chip: "11930660118", operadora: "Vivo" })).toEqual({ temChip: true, rotulo: "Vivo · (11) 93066-0118" });
+    expect(infoChip({ tipo: "Celular", numero_chip: null, operadora: "Vivo" })).toEqual({ temChip: true, rotulo: "Vivo (número não cadastrado)" });
+    expect(infoChip({ tipo: "Celular", numero_chip: "11930660118", operadora: "" })).toEqual({ temChip: true, rotulo: "(11) 93066-0118" });
+    expect(infoChip({ tipo: "Celular", numero_chip: " ", operadora: null })).toEqual({ temChip: false, rotulo: "Sem chip" });
+    expect(infoChip({ tipo: "Roteador", operadora: "Claro" }).temChip).toBe(true);
+    expect(infoChip({ tipo: "Tablet", numero_chip: "11930660118" })).toEqual({ temChip: null, rotulo: "" });
+  });
+
+  it("resumo dos chips dos celulares", () => {
+    expect(
+      resumoChips([
+        { tipo: "Celular", status: "disponivel", operadora: "Vivo" },
+        { tipo: "Celular", status: "alocado", numero_chip: "11930660118" },
+        { tipo: "Celular", status: "em_campo", operadora: "TIM" },
+        { tipo: "Celular", status: "manutencao", operadora: "Vivo" },
+        { tipo: "Celular", status: "em_campo" },
+        { tipo: "Roteador", status: "alocado", operadora: "Claro" },
+      ])
+    ).toEqual({ celulares: 5, comChip: 4, semChip: 1, emUso: 2, livres: 1, manutencao: 1 });
+  });
+});
+
+describe("patrimoniosPorProduto", () => {
+  it("põe cada patrimônio na linha do produto do mesmo tipo", () => {
+    const eq = [
+      { tipo: "Celular", patrimonio: "2035" },
+      { tipo: "Celular", patrimonio: "2037" },
+      { tipo: "Roteador", patrimonio: "R1" },
+      { tipo: "Tablet", patrimonio: "T1" },
+    ];
+    const r = patrimoniosPorProduto([{ nome: "Carregador" }, { nome: "Celular" }, { nome: "Celulares reserva" }, { nome: "Roteador 4G" }], eq);
+    expect(r.porProduto.get("Celular")!.map((e) => e.patrimonio)).toEqual(["2035", "2037"]);
+    expect(r.porProduto.get("Celulares reserva")).toEqual([]);
+    expect(r.porProduto.get("Roteador 4G")!.map((e) => e.patrimonio)).toEqual(["R1"]);
+    expect(r.porProduto.has("Carregador")).toBe(false);
+    expect(r.sobra.map((e) => e.patrimonio)).toEqual(["T1"]);
   });
 });

@@ -79,7 +79,7 @@ export async function GET() {
     );
     // Patrimônios separados/em campo para a prova (só leitura no portal)
     const equipamentos = await dbAll(
-      `SELECT tipo, patrimonio, numero_chip, status FROM equipamentos
+      `SELECT tipo, patrimonio, numero_chip, operadora, status FROM equipamentos
        WHERE evento_id = ? ORDER BY tipo, patrimonio`,
       ev.id
     );

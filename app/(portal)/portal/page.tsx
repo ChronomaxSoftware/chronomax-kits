@@ -6,6 +6,8 @@ import AvisoAtualizarApp from "../AvisoAtualizarApp";
 import LembreteConferencia from "../LembreteConferencia";
 import FotoAmpliada from "@/components/kits/FotoAmpliada";
 import { chegadaPrimeiroDia, lerLinhas, ehDia, formatarDia } from "@/lib/datas-retirada";
+import { patrimoniosPorProduto } from "@/lib/equipamentos";
+import ListaPatrimonios from "@/components/equipamentos/ListaPatrimonios";
 
 type Produto = {
   id: number;
@@ -30,7 +32,7 @@ type EventoPortal = {
   obs_em: string | null;
   confirmado_em: string | null;
   produtos: Produto[];
-  equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null; status: string }[];
+  equipamentos: { tipo: string; patrimonio: string; numero_chip: string | null; operadora: string | null; status: string }[];
   /** Tipos de kit do book da prova (com foto) */
   kits: { id: number; nome: string; descricao: string | null; foto_url: string | null; categoria?: string }[];
   /** "Datas e horários" da retirada de kit (uma linha por dia) */
@@ -229,7 +231,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
       <RetiradaKits texto={evento.datas_horarios_retirada} />
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
 
-      <Aparelhos lista={evento.equipamentos} />
+      <OutrosAparelhos evento={evento} />
       <TiposKit titulo="🎽 Tipos de kit" lista={evento.kits.filter((k) => (k.categoria || "kit") === "kit")} />
       <TiposKit titulo="🔢 Números de peito" lista={evento.kits.filter((k) => k.categoria === "numero")} />
 
@@ -263,10 +265,15 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
                   onChange={() => toggle(idx)}
                   className="w-6 h-6 shrink-0 accent-green-500"
                 />
-                <label className="flex-1 min-w-0" onClick={() => toggle(idx)}>
-                  <span className="text-white block truncate">{it.nome}</span>
-                  <span className="text-xs text-slate-500">esperado: {it.quantidade}</span>
-                </label>
+                <div className="flex-1 min-w-0">
+                  <label className="block" onClick={() => toggle(idx)}>
+                    <span className="text-white block truncate">{it.nome}</span>
+                    <span className="text-xs text-slate-500">esperado: {it.quantidade}</span>
+                  </label>
+                  {patrimoniosDe(evento, it.nome) && (
+                    <ListaPatrimonios lista={patrimoniosDe(evento, it.nome)!} quantidade={it.quantidade} />
+                  )}
+                </div>
                 <div className="shrink-0 text-right">
                   <label className="block text-[10px] text-slate-500 mb-0.5">recebido</label>
                   <input
@@ -375,7 +382,10 @@ function CardFinalizado({ evento, onSalvo }: { evento: EventoPortal; onSalvo: ()
         <ul className="mt-3 space-y-1 text-sm">
           {evento.produtos.map((p) => (
             <li key={p.id} className="flex justify-between gap-2 text-slate-300">
-              <span>{p.nome}</span>
+              <span>
+                {p.nome}
+                {patrimoniosDe(evento, p.nome) && <ListaPatrimonios lista={patrimoniosDe(evento, p.nome)!} />}
+              </span>
               <span className="text-xs text-slate-400 whitespace-nowrap">
                 {p.recebido ? `✓ ${p.qtd_recebida ?? p.quantidade}/${p.quantidade}` : `— /${p.quantidade}`}
               </span>
@@ -444,20 +454,19 @@ function TiposKit({ titulo, lista }: { titulo: string; lista: EventoPortal["kits
   );
 }
 
-/** Patrimônios separados para a prova. */
-function Aparelhos({ lista }: { lista: EventoPortal["equipamentos"] }) {
-  if (lista.length === 0) return null;
+/** Patrimônios da linha do produto (Celular → celulares separados, com chip). */
+function patrimoniosDe(evento: EventoPortal, nome: string) {
+  return patrimoniosPorProduto(evento.produtos, evento.equipamentos).porProduto.get(nome);
+}
+
+/** Patrimônios separados sem linha do mesmo tipo no material (não somem da vista). */
+function OutrosAparelhos({ evento }: { evento: EventoPortal }) {
+  const { sobra } = patrimoniosPorProduto(evento.produtos, evento.equipamentos);
+  if (sobra.length === 0) return null;
   return (
     <div className="mt-4">
-      <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Aparelhos (patrimônio)</p>
-      <ul className="flex flex-wrap gap-1.5">
-        {lista.map((e) => (
-          <li key={e.patrimonio} className="rounded-full border border-slate-600 bg-slate-900 px-2.5 py-1 text-xs text-slate-200">
-            {e.tipo} · <span className="font-mono font-semibold text-white">{e.patrimonio}</span>
-            {e.numero_chip ? <span className="text-slate-400"> · {e.numero_chip}</span> : null}
-          </li>
-        ))}
-      </ul>
+      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Outros aparelhos (patrimônio)</p>
+      <ListaPatrimonios lista={sobra} />
     </div>
   );
 }
@@ -486,7 +495,7 @@ function CardEmBreve({ evento }: { evento: EventoPortal }) {
       <RetiradaKits texto={evento.datas_horarios_retirada} />
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
 
-      <Aparelhos lista={evento.equipamentos} />
+      <OutrosAparelhos evento={evento} />
       <TiposKit titulo="🎽 Tipos de kit" lista={evento.kits.filter((k) => (k.categoria || "kit") === "kit")} />
       <TiposKit titulo="🔢 Números de peito" lista={evento.kits.filter((k) => k.categoria === "numero")} />
 
@@ -497,7 +506,12 @@ function CardEmBreve({ evento }: { evento: EventoPortal }) {
         <ul className="space-y-1 text-sm">
           {evento.produtos.map((p) => (
             <li key={p.id} className="flex justify-between gap-2 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2">
-              <span className="text-white">{p.nome}</span>
+              <span className="text-white min-w-0">
+                {p.nome}
+                {patrimoniosDe(evento, p.nome) && (
+                  <ListaPatrimonios lista={patrimoniosDe(evento, p.nome)!} quantidade={p.quantidade} />
+                )}
+              </span>
               <span className="text-slate-300 font-semibold">{p.quantidade}</span>
             </li>
           ))}

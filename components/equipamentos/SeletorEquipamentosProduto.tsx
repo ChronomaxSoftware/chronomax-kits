@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { TipoEquipamento } from "@/lib/equipamentos";
+import { infoChip, type TipoEquipamento } from "@/lib/equipamentos";
+import { SeloChip } from "@/components/equipamentos/ListaPatrimonios";
 import { normalizarNome } from "@/lib/tecnico-match";
 import { EVENTO_EQUIPAMENTOS_MUDOU, botaoPrimario, campo } from "@/components/equipamentos/ui";
 
@@ -10,6 +11,7 @@ export type EquipamentoResumo = {
   tipo: string;
   patrimonio: string;
   numero_chip: string | null;
+  operadora?: string | null;
   numero_serie: string | null;
   status: string;
   evento_id: number | null;
@@ -17,7 +19,7 @@ export type EquipamentoResumo = {
 };
 
 function infoEquip(e: EquipamentoResumo) {
-  return [e.numero_chip || e.numero_serie, e.base_nome].filter(Boolean).join(" · ");
+  return [infoChip(e).rotulo, e.numero_serie, e.base_nome].filter(Boolean).join(" · ");
 }
 
 /**
@@ -52,7 +54,7 @@ export default function SeletorEquipamentosProduto({
         e.tipo === tipo &&
         e.status === "disponivel" &&
         e.evento_id === null &&
-        (!q || [e.patrimonio, e.numero_chip, e.numero_serie, e.base_nome].some((v) => normalizarNome(v).includes(q)))
+        (!q || [e.patrimonio, e.numero_chip, e.operadora, e.numero_serie, e.base_nome].some((v) => normalizarNome(v).includes(q)))
     );
   }, [lista, tipo, busca]);
 
@@ -110,6 +112,13 @@ export default function SeletorEquipamentosProduto({
         <span className={cor}>
           {tipo === "Roteador" ? "Roteadores" : `${tipo}s`} selecionados: {daProva.length}/{quantidade}
           {daProva.length > quantidade && " · acima do pedido"}
+          {daProva.length > 0 && infoChip(daProva[0]).temChip !== null && (
+            <span className="text-slate-400">
+              {" "}· 📶 {daProva.filter((e) => infoChip(e).temChip).length} com chip
+              {daProva.some((e) => infoChip(e).temChip === false) &&
+                ` · 🚫 ${daProva.filter((e) => infoChip(e).temChip === false).length} sem chip`}
+            </span>
+          )}
         </span>
         <button
           type="button"
@@ -133,6 +142,8 @@ export default function SeletorEquipamentosProduto({
               }`}
             >
               {e.patrimonio}
+              {infoChip(e).temChip === true && <span aria-label="com chip">📶</span>}
+              {infoChip(e).temChip === false && <span aria-label="sem chip">🚫</span>}
               {e.status === "em_campo" ? (
                 <span className="font-sans text-[10px]">em campo</span>
               ) : (
@@ -163,7 +174,7 @@ export default function SeletorEquipamentosProduto({
               className={campo}
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Patrimônio, chip, série ou base"
+              placeholder="Patrimônio, chip, operadora, série ou base"
             />
           </div>
           {disponiveis.length === 0 ? (
@@ -180,7 +191,8 @@ export default function SeletorEquipamentosProduto({
                       onChange={(ev) => alternar(e.id, ev.target.checked)}
                     />
                     <span className="font-mono text-sm font-semibold text-white">{e.patrimonio}</span>
-                    <span className="text-xs text-slate-400 truncate">{infoEquip(e)}</span>
+                    <SeloChip e={e} compacto />
+                    <span className="text-xs text-slate-400 truncate">{[e.numero_serie, e.base_nome].filter(Boolean).join(" · ")}</span>
                   </label>
                 </li>
               ))}
