@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/equipamentos", label: "Inventário" },
   { href: "/produtos", label: "Produtos (catálogo)" },
   { href: "/bases", label: "Bases" },
+  { href: "/previsao", label: "Previsão de estoque" },
   { href: "/alugados", label: "Alugados" },
   { href: "/staff", label: "Controle de Staff" },
   { href: "/telao", label: "Telão" },
