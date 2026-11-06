@@ -44,6 +44,8 @@ type EventoPortal = {
   devolvido_em: string | null;
   obs_devolucao: string | null;
   logins: string | null;
+  /** Login individual (ex.: Master) — só deste técnico */
+  meu_login: string | null;
 };
 
 function dataHora(iso: string | null) {
@@ -230,6 +232,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
 
       <RetiradaKits texto={evento.datas_horarios_retirada} />
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
+      {evento.meu_login && <LoginsEntrega texto={evento.meu_login} individual />}
 
       <OutrosAparelhos evento={evento} />
       <TiposKit titulo="🎽 Tipos de kit" lista={evento.kits.filter((k) => (k.categoria || "kit") === "kit")} />
@@ -338,7 +341,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
 }
 
 /** Logins da entrega (RunKing etc.) cadastrados pela equipe no card "🔑 Logins" da prova. */
-function LoginsEntrega({ texto }: { texto: string }) {
+function LoginsEntrega({ texto, individual = false }: { texto: string; individual?: boolean }) {
   const [copiado, setCopiado] = useState(false);
   async function copiar() {
     try {
@@ -350,9 +353,13 @@ function LoginsEntrega({ texto }: { texto: string }) {
     }
   }
   return (
-    <div className="mt-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3">
+    <div
+      className={`mt-4 rounded-lg border p-3 ${individual ? "border-amber-500/40 bg-amber-500/10" : "border-blue-500/30 bg-blue-500/10"}`}
+    >
       <div className="flex items-center justify-between gap-2 mb-2">
-        <p className="text-xs text-blue-200 uppercase tracking-wide">🔑 Logins para a entrega</p>
+        <p className={`text-xs uppercase tracking-wide ${individual ? "text-amber-200" : "text-blue-200"}`}>
+          {individual ? "🔒 Seu login (só você vê)" : "🔑 Logins para a entrega"}
+        </p>
         <button onClick={copiar} className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded">
           {copiado ? "✓ Copiado" : "Copiar"}
         </button>
@@ -494,6 +501,7 @@ function CardEmBreve({ evento }: { evento: EventoPortal }) {
 
       <RetiradaKits texto={evento.datas_horarios_retirada} />
       {evento.logins && <LoginsEntrega texto={evento.logins} />}
+      {evento.meu_login && <LoginsEntrega texto={evento.meu_login} individual />}
 
       <OutrosAparelhos evento={evento} />
       <TiposKit titulo="🎽 Tipos de kit" lista={evento.kits.filter((k) => (k.categoria || "kit") === "kit")} />

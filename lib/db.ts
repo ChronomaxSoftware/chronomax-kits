@@ -502,6 +502,8 @@ CREATE TABLE IF NOT EXISTS treinamento_assistidos (
     // ...e quando confirmou que devolveu todo o material (com observação da devolução)
     ["evento_tecnicos", "devolvido_em", "ALTER TABLE evento_tecnicos ADD COLUMN devolvido_em TEXT"],
     ["evento_tecnicos", "obs_devolucao", "ALTER TABLE evento_tecnicos ADD COLUMN obs_devolucao TEXT"],
+    // Login individual da entrega (ex.: Master): só o próprio técnico vê no portal; não vai no book
+    ["evento_tecnicos", "login_individual", "ALTER TABLE evento_tecnicos ADD COLUMN login_individual TEXT"],
     // Alerta gerado pelo sistema (ex.: retorno pendente) tem chave para não repetir
     ["alertas", "chave", "ALTER TABLE alertas ADD COLUMN chave TEXT"],
     // Conferência diária dos celulares ligada pelo escritório nesta prova

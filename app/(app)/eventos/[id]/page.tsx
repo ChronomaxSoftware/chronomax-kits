@@ -58,6 +58,7 @@ type Evento = {
     obs_recebimento?: string | null;
     obs_em?: string | null;
     confirmado_em?: string | null;
+    login_individual?: string | null;
     devolvido_em?: string | null;
     obs_devolucao?: string | null;
   }[];
@@ -99,6 +100,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [loginsCopiados, setLoginsCopiados] = useState(false);
+  /** Login individual de cada técnico atribuído (tecnico_id → texto) */
+  const [loginsTecnicos, setLoginsTecnicos] = useState<Record<number, string>>({});
   const [inventario, setInventario] = useState<EquipamentoResumo[]>([]);
 
   useEffect(() => {
@@ -134,6 +137,9 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
       setUrlSiteOficial(ev.url_site_oficial || "");
       setLinksEvento(ev.links_evento || "");
       setUsuariosEvento(ev.usuarios_evento || "");
+      setLoginsTecnicos(
+        Object.fromEntries(ev.tecnicos.map((t: { id: number; login_individual?: string | null }) => [t.id, t.login_individual || ""]))
+      );
     });
     carregarInventario();
   }, [id]);
@@ -207,9 +213,25 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
         links_evento: linksEvento || null,
         usuarios_evento: usuariosEvento || null,
         tecnicos: Array.from(tecnicosSel),
+        // só de quem continua atribuído (quem saiu perde o vínculo e o login junto)
+        logins_tecnicos: Object.fromEntries(Object.entries(loginsTecnicos).filter(([tid]) => tecnicosSel.has(Number(tid)))),
         produtos: Array.from(produtosSel.entries()).map(([id, quantidade]) => ({ id, quantidade })),
       }),
     });
+    // recarrega os técnicos: quem acabou de ser atribuído ganha o campo do login individual
+    try {
+      const ev = await fetch(`/api/eventos/${id}`).then((r) => r.json());
+      if (ev?.tecnicos) {
+        setEvento((atual) => (atual ? { ...atual, tecnicos: ev.tecnicos } : atual));
+        setLoginsTecnicos((m) =>
+          Object.fromEntries(
+            ev.tecnicos.map((t: { id: number; login_individual?: string | null }) => [t.id, m[t.id] ?? t.login_individual ?? ""])
+          )
+        );
+      }
+    } catch {
+      /* mantém a tela como está */
+    }
     setSalvando(false);
     setSalvo(true);
     setTimeout(() => setSalvo(false), 2000);
@@ -583,7 +605,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
           <Card titulo="🔑 Logins da entrega de kit">
             <div className="space-y-2">
               <p className="text-xs text-slate-400">
-                1 por linha, formato livre (ex.: <span className="font-mono">Master - email@x.com - 123456</span>). Também sai no book.
+                <strong className="text-slate-200">Todos os técnicos da prova veem</strong> (ex.: logins dos celulares). 1 por linha,
+                formato livre (ex.: <span className="font-mono">Numero - staff@x.com - 01</span>). Também sai no book.
               </p>
               <textarea
                 value={usuariosEvento}
@@ -610,6 +633,35 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 >
                   {loginsCopiados ? "✓ Copiado" : "Copiar logins"}
                 </button>
+              </div>
+
+              <div className="pt-3 mt-1 border-t border-slate-700 space-y-2">
+                <p className="text-sm font-semibold text-white">🔒 Login individual de cada técnico</p>
+                <p className="text-xs text-slate-400">
+                  Só o próprio técnico vê no portal dele (ex.: <span className="font-mono">Master - email@x.com - 123456</span>).
+                  Não sai no book nem para os outros técnicos da prova.
+                </p>
+                {evento.tecnicos.filter((t) => tecnicosSel.has(t.id)).length === 0 ? (
+                  <p className="text-xs text-slate-500">Atribua e salve os técnicos da prova para preencher o login de cada um.</p>
+                ) : (
+                  evento.tecnicos
+                    .filter((t) => tecnicosSel.has(t.id))
+                    .map((t) => (
+                      <label key={t.id} className="block">
+                        <span className="text-xs text-slate-300">{t.nome}</span>
+                        <input
+                          value={loginsTecnicos[t.id] ?? ""}
+                          onChange={(e) => setLoginsTecnicos((m) => ({ ...m, [t.id]: e.target.value }))}
+                          maxLength={500}
+                          placeholder="Master - email@x.com - senha"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm font-mono"
+                        />
+                      </label>
+                    ))
+                )}
+                {[...tecnicosSel].some((tid) => !evento.tecnicos.some((t) => t.id === tid)) && (
+                  <p className="text-xs text-amber-300">Técnico recém-marcado: salve as alterações para aparecer o campo do login dele.</p>
+                )}
               </div>
             </div>
           </Card>

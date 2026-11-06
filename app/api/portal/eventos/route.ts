@@ -33,10 +33,11 @@ export async function GET() {
     confirmado_em: string | null;
     devolvido_em: string | null;
     obs_devolucao: string | null;
+    login_individual: string | null;
   }>(
     `SELECT e.id, e.numero, e.nome, e.data, e.cidade, e.uf, e.local_entrega, e.data_entrega, e.hora_entrega,
             e.usuarios_evento, e.datas_horarios_retirada, et.obs_recebimento, et.obs_em, et.confirmado_em,
-            et.devolvido_em, et.obs_devolucao
+            et.devolvido_em, et.obs_devolucao, et.login_individual
      FROM evento_tecnicos et JOIN eventos e ON e.id = et.evento_id
      WHERE et.tecnico_id = ?`,
     tid
@@ -54,7 +55,8 @@ export async function GET() {
       const situacao = situacaoProva(d);
       const finalizado = situacao === "finalizada";
       // Logins da entrega (card "🔑 Logins" da prova) só enquanto a prova não passou
-      const { usuarios_evento, ...resto } = e;
+      // + o login individual dele (a consulta já é só do técnico logado)
+      const { usuarios_evento, login_individual, ...resto } = e;
       return {
         ...resto,
         finalizado,
@@ -63,6 +65,7 @@ export async function GET() {
         libera_em: situacao === "em_breve" && d ? formatBR(liberaEm(d)) : null,
         pode_devolver: podeDevolver(d),
         logins: finalizado ? null : usuarios_evento?.trim() || null,
+        meu_login: finalizado ? null : login_individual?.trim() || null,
       };
     });
 
