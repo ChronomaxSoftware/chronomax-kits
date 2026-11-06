@@ -3,6 +3,8 @@ import { dbRun, dbGet, dbAll, dbBatch, initDB } from "@/lib/db";
 import { statementsApagarEventos } from "@/lib/eventos-remocao";
 import { qtdNotebookAtendimento } from "@/lib/notebook-atendimento";
 
+const LOGIN_INDIVIDUAL_MAX = 500;
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await initDB();
   const { id } = await params;
@@ -11,7 +13,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const tecnicos = await dbAll(
     `SELECT t.id, t.nome, t.telefone, t.endereco, t.ativo, et.funcao, et.atribuido_em,
-            et.obs_recebimento, et.obs_em, et.confirmado_em, et.devolvido_em, et.obs_devolucao
+            et.obs_recebimento, et.obs_em, et.confirmado_em, et.devolvido_em, et.obs_devolucao,
+            et.login_individual
      FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id
      WHERE et.evento_id = ? AND t.ativo = 1`,
     id
@@ -90,6 +93,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         id,
         tid,
         agora
+      );
+    }
+  }
+
+  // { logins_tecnicos: { [tecnico_id]: "Master - email - senha" } } — login individual de cada técnico
+  if (body.logins_tecnicos && typeof body.logins_tecnicos === "object" && !Array.isArray(body.logins_tecnicos)) {
+    for (const [tid, texto] of Object.entries(body.logins_tecnicos as Record<string, unknown>)) {
+      const tecnicoId = Number(tid);
+      if (!Number.isInteger(tecnicoId) || tecnicoId <= 0) continue;
+      const valor = String(texto ?? "").trim().slice(0, LOGIN_INDIVIDUAL_MAX) || null;
+      await dbRun(
+        "UPDATE evento_tecnicos SET login_individual = ? WHERE evento_id = ? AND tecnico_id = ?",
+        valor,
+        id,
+        tecnicoId
       );
     }
   }
