@@ -426,6 +426,7 @@ function RetiradaKits({ texto }: { texto: string | null }) {
           ⏰ Chegue às {chegada.chegada} no dia {chegada.dataRotulo}
           <span className="block text-xs font-normal text-amber-200/80">
             {chegada.horasAntes}h antes da abertura ({chegada.abertura}) do 1º dia
+            {chegada.local && <> · 📍 {chegada.local}</>}
           </span>
         </p>
       )}

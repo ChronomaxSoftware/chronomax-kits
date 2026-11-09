@@ -48,7 +48,7 @@ export default function EditorDatasRetirada({
     onChange(formatarLinhas(novas));
   }
 
-  function alterar(i: number, campo: "data" | "inicio" | "fim", v: string) {
+  function alterar(i: number, campo: "data" | "inicio" | "fim" | "local", v: string) {
     mudar(linhas.map((l, j) => (j === i && ehDia(l) ? { ...l, [campo]: v } : l)));
   }
 
@@ -124,6 +124,14 @@ export default function EditorDatasRetirada({
                 onChange={(e) => alterar(i, "fim", e.target.value)}
                 aria-label={`Fechamento do dia ${i + 1}`}
                 className={campo}
+              />
+              <input
+                value={l.local ?? ""}
+                onChange={(e) => alterar(i, "local", e.target.value)}
+                aria-label={`Local do dia ${i + 1}`}
+                title="Só se este dia for em outro local (vazio = Local de entrega da prova)"
+                placeholder="📍 local deste dia (opcional)"
+                className={`${campo} flex-1 min-w-[12rem]`}
               />
             </>
           ) : (
