@@ -120,7 +120,7 @@ const INICIO_LOCAL = /^\s*(?:local(?:\s+da\s+retirada)?|endere[çc]o(?:\s+da\s+r
 
 /**
  * Texto colado → dias + o bloco do local (da linha "📍 LOCAL:" até o fim), que vai para o
- * Endereço da retirada em vez de ficar nos Datas e horários.
+ * Local de entrega da prova em vez de ficar nos Datas e horários.
  */
 export function separarTextoColado(texto: string, anoPadrao?: number): { linhas: LinhaRetirada[]; local: string | null } {
   const linhas = semEmojis(String(texto || "").replace(/\r/g, "")).split("\n");

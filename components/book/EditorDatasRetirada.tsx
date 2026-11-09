@@ -26,7 +26,7 @@ export default function EditorDatasRetirada({
 }: {
   value: string;
   onChange: (texto: string) => void;
-  /** Endereço da retirada atual: o local que vier no texto colado vai para lá */
+  /** Local de entrega atual: o local que vier no texto colado vai para lá */
   localAtual?: string;
   onLocal?: (local: string) => void;
 }) {
@@ -81,7 +81,7 @@ export default function EditorDatasRetirada({
       const atual = (localAtual || "").trim();
       if (!atual) {
         onLocal(local);
-        msgLocal = " Local colocado no Endereço da retirada.";
+        msgLocal = " Local colocado no Local de entrega.";
       } else if (atual !== local.trim()) {
         setLocalPendente(local);
       }
@@ -187,7 +187,7 @@ export default function EditorDatasRetirada({
       {avisoColar && <p className="text-[11px] text-slate-300">{avisoColar}</p>}
       {localPendente && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs space-y-1.5">
-          <p className="text-amber-200">O texto colado tem um local diferente do Endereço da retirada atual. Trocar?</p>
+          <p className="text-amber-200">O texto colado tem um local diferente do Local de entrega atual. Trocar?</p>
           <div className="grid sm:grid-cols-2 gap-2">
             <div>
               <p className="text-[10px] uppercase text-slate-500">Atual</p>
@@ -204,7 +204,7 @@ export default function EditorDatasRetirada({
               onClick={() => {
                 onLocal?.(localPendente);
                 setLocalPendente(null);
-                setAvisoColar("Endereço da retirada trocado pelo do texto colado.");
+                setAvisoColar("Local de entrega trocado pelo do texto colado.");
               }}
               className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded"
             >
