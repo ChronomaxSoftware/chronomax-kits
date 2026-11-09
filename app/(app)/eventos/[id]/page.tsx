@@ -184,6 +184,17 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
     setProdutosSel(novo);
   }
 
+  /**
+   * Local que veio no texto colado das datas → Local de entrega. O Endereço da retirada
+   * (book) acompanha se estava igual ao local antigo; vazio continua vazio (o book usa o
+   * Local de entrega) e um endereço diferente, escolhido só para o book, fica como está.
+   */
+  function aplicarLocalColado(novo: string) {
+    const antigo = localEntrega.trim();
+    setLocalEntrega(novo);
+    setEnderecoRetirada((e) => (e.trim() && e.trim() === antigo ? novo : e));
+  }
+
   async function salvar() {
     setSalvando(true);
     setSalvo(false);
@@ -342,9 +353,10 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
               </div>
               <div className="col-span-2">
                 <label className="block text-xs text-slate-400 mb-1">Local de entrega</label>
-                <input
+                <textarea
                   value={localEntrega}
                   onChange={(e) => setLocalEntrega(e.target.value)}
+                  rows={2}
                   placeholder="Ex: Hotel X, Sede do cliente, Arena..."
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white"
                 />
@@ -357,8 +369,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 <EditorDatasRetirada
                   value={datasHorariosRetirada}
                   onChange={setDatasHorariosRetirada}
-                  localAtual={enderecoRetirada}
-                  onLocal={setEnderecoRetirada}
+                  localAtual={localEntrega}
+                  onLocal={aplicarLocalColado}
                 />
               </div>
               <div className="col-span-2">
@@ -428,8 +440,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                 <EditorDatasRetirada
                   value={datasHorariosRetirada}
                   onChange={setDatasHorariosRetirada}
-                  localAtual={enderecoRetirada}
-                  onLocal={setEnderecoRetirada}
+                  localAtual={localEntrega}
+                  onLocal={aplicarLocalColado}
                 />
               </div>
               <div>
