@@ -69,7 +69,7 @@ export function normalizarDataExtenso(texto: string): string {
       (_, d: string, mes: string, ano?: string) =>
         `${d}/${MESES[mes.slice(0, 3).toLowerCase().replace("ç", "c")]}${ano ? `/${ano}` : ""}`
     )
-    .replace(/(?<![a-zà-ú])(?:(?:segunda|ter[çc]a|quarta|quinta|sexta)(?:[\s-]*feira)?|s[áa]bado|domingo)(?![a-zà-ú])\s*,?\s*(?=\(?\s*\d{1,2}\/)/gi, "")
+    .replace(/(?<![a-zà-ú])(?:(?:segunda|ter[çc]a|quarta|quinta|sexta)(?:[\s-]*feira)?|s[áa]bado|domingo)(?![a-zà-ú])\s*[,–—-]?\s*(?=\(?\s*\d{1,2}\/)/gi, "")
     .replace(/\(\s*(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s*\)/g, " $1 ")
     .replace(/^[ \t]*[-–•*]+[ \t]*/gm, "");
 }
@@ -110,16 +110,56 @@ export function lerLinhas(texto: string | null | undefined, anoPadrao?: number):
     .map((l) => lerLinha(l, anoPadrao));
 }
 
+/** Tira emojis (📅 ⏰ 📍 …) e marcadores de variação — atrapalham a leitura das linhas. */
+function semEmojis(texto: string): string {
+  return texto.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{20E3}]/gu, "");
+}
+
+/** Linha que começa o bloco do local ("📍 LOCAL: …", "Endereço: …"). */
+const INICIO_LOCAL = /^\s*(?:local(?:\s+da\s+retirada)?|endere[çc]o(?:\s+da\s+retirada)?)\s*:/i;
+
+/**
+ * Texto colado → dias + o bloco do local (da linha "📍 LOCAL:" até o fim), que vai para o
+ * Endereço da retirada em vez de ficar nos Datas e horários.
+ */
+export function separarTextoColado(texto: string, anoPadrao?: number): { linhas: LinhaRetirada[]; local: string | null } {
+  const linhas = semEmojis(String(texto || "").replace(/\r/g, "")).split("\n");
+  const i = linhas.findIndex((l) => INICIO_LOCAL.test(l));
+  let local: string | null = null;
+  if (i >= 0) {
+    const bloco = linhas
+      .slice(i)
+      .map((l, k) => (k === 0 ? l.replace(INICIO_LOCAL, "") : l).replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+    local = bloco.length ? bloco.join("\n") : null;
+  }
+  return { linhas: converterTextoColado((i >= 0 ? linhas.slice(0, i) : linhas).join("\n"), anoPadrao), local };
+}
+
 /**
  * Texto colado (WhatsApp, e-mail, Gestão) → linhas de dias. Tira o título "Datas e horários:",
  * separa vários dias que vieram na mesma linha e normaliza para o formato do book.
  */
 export function converterTextoColado(texto: string, anoPadrao?: number): LinhaRetirada[] {
-  const limpo = normalizarDataExtenso(String(texto || "").replace(/\r/g, ""))
+  const limpo = normalizarDataExtenso(semEmojis(String(texto || "").replace(/\r/g, "")))
     .replace(/datas?\s+e\s+hor[aá]rios?\s*:?/gi, "\n")
     // cada data (dd/mm ou dd/mm/aaaa) começa um dia novo
     .replace(/\s+(?=\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b)/g, "\n");
-  return lerLinhas(limpo, anoPadrao).map((l) => (ehDia(l) ? l : { texto: l.texto.replace(/\s+/g, " ").trim() }));
+  const lidas = lerLinhas(limpo, anoPadrao).map((l) => (ehDia(l) ? l : { texto: l.texto.replace(/\s+/g, " ").trim() }));
+  // horário na linha de baixo da data ("13/11" + "Das 10h às 18h") vira o horário daquele dia
+  const out: LinhaRetirada[] = [];
+  for (const l of lidas) {
+    const ant = out[out.length - 1];
+    if (!ehDia(l) && ant && ehDia(ant) && !ant.inicio) {
+      const h = lerLinha(`01/01/2000 ${l.texto}`);
+      if (ehDia(h) && h.inicio) {
+        out[out.length - 1] = { ...ant, inicio: h.inicio, fim: h.fim };
+        continue;
+      }
+    }
+    out.push(l);
+  }
+  return out.filter((l) => ehDia(l) || l.texto);
 }
 
 /**

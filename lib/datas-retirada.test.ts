@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chegadaPrimeiroDia, converterTextoColado, diaDaEntregaAntiga, entregaDoPrimeiroDia, formatarDia, formatarLinhas, lerLinha, lerLinhas, textoChegada } from "./datas-retirada";
+import { chegadaPrimeiroDia, converterTextoColado, separarTextoColado, diaDaEntregaAntiga, entregaDoPrimeiroDia, formatarDia, formatarLinhas, lerLinha, lerLinhas, textoChegada } from "./datas-retirada";
 
 describe("datas e horários da retirada", () => {
   it("monta a linha no formato do modelo", () => {
@@ -107,5 +107,42 @@ describe("data por extenso não mexe em texto livre", () => {
     expect(converterTextoColado("Sábado só retirada de número (com documento)")).toEqual([
       { texto: "Sábado só retirada de número (com documento)" },
     ]);
+  });
+});
+
+describe("colar com emojis, horário na linha de baixo e local", () => {
+  const texto = `📅 SEXTA-FEIRA – 13/11
+⏰ Das 10h às 18h
+
+📅 SÁBADO – 14/11
+⏰ Das 10h às 18h
+
+📍 LOCAL: PARQUE SHOPPING SULACAP
+Av. Marechal Fontenelle, 3545
+📌 Corredor da Drogaria Pacheco – 1º andar.`;
+
+  it("junta o horário com a data e separa o local", () => {
+    const r = separarTextoColado(texto, 2026);
+    expect(formatarLinhas(r.linhas)).toBe("13/11/2026 das 10h00 às 18h00\n14/11/2026 das 10h00 às 18h00");
+    expect(r.local).toBe("PARQUE SHOPPING SULACAP\nAv. Marechal Fontenelle, 3545\nCorredor da Drogaria Pacheco – 1º andar.");
+    expect(chegadaPrimeiroDia(formatarLinhas(r.linhas))?.chegada).toBe("08h00");
+  });
+
+  it("sem bloco de local, local = null e os formatos antigos continuam iguais", () => {
+    const r = separarTextoColado("06/11/2026 das 12h00 às 21h00\n07/11/2026 das 10h00 às 21h00");
+    expect(r.local).toBeNull();
+    expect(formatarLinhas(r.linhas)).toBe("06/11/2026 das 12h00 às 21h00\n07/11/2026 das 10h00 às 21h00");
+    expect(formatarLinhas(converterTextoColado("- Quinta-feira (5 de novembro): 11h às 21h", 2026))).toBe("05/11/2026 das 11h00 às 21h00");
+  });
+
+  it("horário solto sem data em cima continua texto; data que já tem horário não é sobrescrita", () => {
+    expect(converterTextoColado("Das 10h às 18h")).toEqual([{ texto: "Das 10h às 18h" }]);
+    expect(formatarLinhas(converterTextoColado("13/11/2026 das 9h às 12h\nDas 14h às 18h"))).toBe(
+      "13/11/2026 das 09h00 às 12h00\nDas 14h às 18h"
+    );
+  });
+
+  it("Endereço: também abre o bloco do local", () => {
+    expect(separarTextoColado("13/11/2026 10h às 18h\nEndereço: Rua A, 10").local).toBe("Rua A, 10");
   });
 });

@@ -354,7 +354,12 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
                   Datas e horários da entrega/retirada{" "}
                   <span className="text-slate-500">(o 1º dia é a data e hora da entrega; o mesmo do 📘 Book — Local da retirada)</span>
                 </label>
-                <EditorDatasRetirada value={datasHorariosRetirada} onChange={setDatasHorariosRetirada} />
+                <EditorDatasRetirada
+                  value={datasHorariosRetirada}
+                  onChange={setDatasHorariosRetirada}
+                  localAtual={enderecoRetirada}
+                  onLocal={setEnderecoRetirada}
+                />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs text-slate-400 mb-1">Status</label>
@@ -420,7 +425,12 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Datas e horários</label>
-                <EditorDatasRetirada value={datasHorariosRetirada} onChange={setDatasHorariosRetirada} />
+                <EditorDatasRetirada
+                  value={datasHorariosRetirada}
+                  onChange={setDatasHorariosRetirada}
+                  localAtual={enderecoRetirada}
+                  onLocal={setEnderecoRetirada}
+                />
               </div>
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1">
