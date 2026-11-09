@@ -7,6 +7,7 @@ import {
   ehDia,
   formatarLinhas,
   lerLinhas,
+  separarTextoColado,
   textoChegada,
   type LinhaRetirada,
 } from "@/lib/datas-retirada";
@@ -17,11 +18,24 @@ const campo = "bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-
  * "Datas e horários" da retirada: uma linha por dia (data, início, fim). Salva como texto
  * ("06/11/2026 das 12h00 às 21h00", uma por linha) e mostra a chegada da equipe no 1º dia.
  */
-export default function EditorDatasRetirada({ value, onChange }: { value: string; onChange: (texto: string) => void }) {
+export default function EditorDatasRetirada({
+  value,
+  onChange,
+  localAtual,
+  onLocal,
+}: {
+  value: string;
+  onChange: (texto: string) => void;
+  /** Endereço da retirada atual: o local que vier no texto colado vai para lá */
+  localAtual?: string;
+  onLocal?: (local: string) => void;
+}) {
   const [linhas, setLinhas] = useState<LinhaRetirada[]>(() => lerLinhas(value));
   const [colando, setColando] = useState(false);
   const [colado, setColado] = useState("");
   const [avisoColar, setAvisoColar] = useState("");
+  /** Local do texto colado, diferente do endereço já preenchido: espera o ok para trocar */
+  const [localPendente, setLocalPendente] = useState<string | null>(null);
 
   // valor carregado de fora (abrir a prova) → refaz as linhas; o que o próprio editor gerou não mexe
   useEffect(() => {
@@ -51,7 +65,7 @@ export default function EditorDatasRetirada({ value, onChange }: { value: string
   }
 
   function transformar() {
-    const novas = converterTextoColado(colado);
+    const { linhas: novas, local } = separarTextoColado(colado);
     const dias = novas.filter(ehDia).length;
     if (dias === 0) {
       setAvisoColar("Não achei nenhuma data (dd/mm) no texto.");
@@ -61,9 +75,21 @@ export default function EditorDatasRetirada({ value, onChange }: { value: string
     setColado("");
     setColando(false);
     const fora = novas.length - dias;
+    let msgLocal = "";
+    setLocalPendente(null);
+    if (local && onLocal) {
+      const atual = (localAtual || "").trim();
+      if (!atual) {
+        onLocal(local);
+        msgLocal = " Local colocado no Endereço da retirada.";
+      } else if (atual !== local.trim()) {
+        setLocalPendente(local);
+      }
+    }
     setAvisoColar(
       `${dias} dia${dias > 1 ? "s" : ""} transformado${dias > 1 ? "s" : ""}.` +
-        (fora ? ` ${fora} linha${fora > 1 ? "s" : ""} sem data ficou como texto — confira.` : "")
+        (fora ? ` ${fora} linha${fora > 1 ? "s" : ""} sem data ficou como texto — confira.` : "") +
+        msgLocal
     );
   }
 
@@ -159,6 +185,37 @@ export default function EditorDatasRetirada({ value, onChange }: { value: string
         </div>
       )}
       {avisoColar && <p className="text-[11px] text-slate-300">{avisoColar}</p>}
+      {localPendente && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-xs space-y-1.5">
+          <p className="text-amber-200">O texto colado tem um local diferente do Endereço da retirada atual. Trocar?</p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            <div>
+              <p className="text-[10px] uppercase text-slate-500">Atual</p>
+              <p className="whitespace-pre-line text-slate-300">{localAtual}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase text-slate-500">Do texto colado</p>
+              <p className="whitespace-pre-line text-white">{localPendente}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onLocal?.(localPendente);
+                setLocalPendente(null);
+                setAvisoColar("Endereço da retirada trocado pelo do texto colado.");
+              }}
+              className="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1 rounded"
+            >
+              Trocar
+            </button>
+            <button type="button" onClick={() => setLocalPendente(null)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded">
+              Manter o atual
+            </button>
+          </div>
+        </div>
+      )}
       {chegada && <p className="text-xs text-amber-300">⏰ {textoChegada(chegada)}</p>}
     </div>
   );
