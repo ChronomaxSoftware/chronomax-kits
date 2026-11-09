@@ -146,3 +146,55 @@ Av. Marechal Fontenelle, 3545
     expect(separarTextoColado("13/11/2026 10h às 18h\nEndereço: Rua A, 10").local).toBe("Rua A, 10");
   });
 });
+
+describe("local por dia", () => {
+  it("salva e lê o local do dia depois do travessão", () => {
+    const d = { data: "2026-11-13", inicio: "10:00", fim: "16:00", local: "Agência Sicredi — Av. Protásio Alves, 1180" };
+    expect(formatarDia(d)).toBe("13/11/2026 das 10h00 às 16h00 — Agência Sicredi — Av. Protásio Alves, 1180");
+    expect(lerLinha(formatarDia(d))).toEqual(d);
+    expect(lerLinha("14/11/2026 das 11h às 18h – Shopping Praia de Belas")).toEqual({
+      data: "2026-11-14", inicio: "11:00", fim: "18:00", local: "Shopping Praia de Belas",
+    });
+    // sem local continua igual (sem a chave local)
+    expect(lerLinha("06/11/2026 das 12h00 às 21h00")).toEqual({ data: "2026-11-06", inicio: "12:00", fim: "21:00" });
+    expect(lerLinha("SEXTA-FEIRA – 13/11/2026 10h às 18h")).toEqual({ data: "2026-11-13", inicio: "10:00", fim: "18:00" });
+  });
+
+  it("chegada mostra o local do 1º dia", () => {
+    const c = chegadaPrimeiroDia("14/11/2026 das 11h00 às 18h00 — Shopping\n13/11/2026 das 10h00 às 16h00 — Sicredi")!;
+    expect(c.local).toBe("Sicredi");
+    expect(textoChegada(c)).toBe("Chegada da equipe no 1º dia: 13/11/2026 às 08h00 (2h antes da abertura, 10h00) — 📍 Sicredi");
+  });
+
+  it("mensagem em texto corrido: cada data com o seu horário e a sugestão de local", () => {
+    const r = separarTextoColado(
+      "temos dois locais confirmados para entrega, mesmos do ano passado, agência do Sicredi na Av Protásio Alves, 1180, dia 13/11/2026 das 10h às 16h e sábado dia 14/11/2026, no shopping praia de belas (alteramos a loja), das 11h às 18h.",
+      2026
+    );
+    expect(formatarLinhas(r.linhas)).toBe(
+      "13/11/2026 das 10h00 às 16h00 — Agência do Sicredi na Av Protásio Alves, 1180\n" +
+        "14/11/2026 das 11h00 às 18h00 — Shopping praia de belas (alteramos a loja)"
+    );
+    expect(r.local).toBe("13/11: Agência do Sicredi na Av Protásio Alves, 1180\n14/11: Shopping praia de belas (alteramos a loja)");
+  });
+
+  it("um local só em texto corrido vira o Local de entrega (dias sem local)", () => {
+    const r = separarTextoColado("A entrega será no Ginásio Central, dias 13/11/2026 das 10h às 16h e 14/11/2026 das 9h às 12h.", 2026);
+    expect(formatarLinhas(r.linhas)).toBe("13/11/2026 das 10h00 às 16h00\n14/11/2026 das 09h00 às 12h00");
+    expect(r.local).toBe("Ginásio Central");
+  });
+
+  it("formatos por linha continuam ganhando do texto corrido", () => {
+    const l = converterTextoColado("Datas e horários:  28/05 (quinta): 10h às 20h  29/05 (sexta): 10h às 20h", 2026);
+    expect(formatarLinhas(l)).toBe("28/05/2026 das 10h00 às 20h00\n29/05/2026 das 10h00 às 20h00");
+  });
+});
+
+describe("todosOsDiasComLocal", () => {
+  it("só quando todo dia tem local", async () => {
+    const { todosOsDiasComLocal } = await import("./datas-retirada");
+    expect(todosOsDiasComLocal("13/11/2026 das 10h00 às 16h00 — A\n14/11/2026 das 11h00 às 18h00 — B")).toBe(true);
+    expect(todosOsDiasComLocal("13/11/2026 das 10h00 às 16h00 — A\n14/11/2026 das 11h00 às 18h00")).toBe(false);
+    expect(todosOsDiasComLocal("")).toBe(false);
+  });
+});

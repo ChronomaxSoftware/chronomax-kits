@@ -6,8 +6,14 @@
 
 export const HORAS_ANTES_CHEGADA = 2;
 
-/** Dia de retirada: data ISO (AAAA-MM-DD) e horas "HH:MM" (como o input type=time). */
-export type DiaRetirada = { data: string; inicio: string; fim: string };
+/**
+ * Dia de retirada: data ISO (AAAA-MM-DD) e horas "HH:MM" (como o input type=time).
+ * `local` = local só deste dia (entrega em locais diferentes); vazio = Local de entrega da prova.
+ */
+export type DiaRetirada = { data: string; inicio: string; fim: string; local?: string };
+
+/** Separador do local na linha salva: "13/11/2026 das 10h00 às 16h00 — Agência Sicredi" */
+export const SEPARADOR_LOCAL = " — ";
 /** Linha que não está no formato (fica como texto, não se perde). */
 export type LinhaRetirada = DiaRetirada | { texto: string };
 
@@ -27,12 +33,14 @@ export function rotuloData(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
-/** Um dia → "06/11/2026 das 12h00 às 21h00" (sem fim → "a partir das 12h00"). */
+/** Um dia → "06/11/2026 das 12h00 às 21h00" (sem fim → "a partir das 12h00"), + " — local" se tiver. */
 export function formatarDia(d: DiaRetirada): string {
   const data = rotuloData(d.data);
-  if (d.inicio && d.fim) return `${data} das ${rotuloHora(d.inicio)} às ${rotuloHora(d.fim)}`;
-  if (d.inicio) return `${data} a partir das ${rotuloHora(d.inicio)}`;
-  return data;
+  const local = d.local?.replace(/\s+/g, " ").trim();
+  const sufixo = local ? `${SEPARADOR_LOCAL}${local}` : "";
+  if (d.inicio && d.fim) return `${data} das ${rotuloHora(d.inicio)} às ${rotuloHora(d.fim)}${sufixo}`;
+  if (d.inicio) return `${data} a partir das ${rotuloHora(d.inicio)}${sufixo}`;
+  return `${data}${sufixo}`;
 }
 
 /** Linhas → texto salvo no banco (uma por linha; dias sem data são ignorados). */
@@ -79,6 +87,21 @@ export function normalizarDataExtenso(texto: string): string {
  * Sem ano → `anoPadrao`. O que não casar volta como { texto }.
  */
 export function lerLinha(linha: string, anoPadrao: number = new Date().getFullYear()): LinhaRetirada {
+  const s = linha.trim();
+  const direto = lerLinhaSemLocal(s, anoPadrao);
+  if (ehDia(direto)) return direto;
+  // "13/11/2026 das 10h00 às 16h00 — Agência Sicredi": o que vem depois do travessão é o local do dia
+  const sep = /\s+[—–]\s+/g;
+  let m: RegExpExecArray | null;
+  while ((m = sep.exec(s))) {
+    const local = s.slice(m.index + m[0].length).trim();
+    const dia = lerLinhaSemLocal(s.slice(0, m.index), anoPadrao);
+    if (ehDia(dia) && local) return { ...dia, local };
+  }
+  return direto;
+}
+
+function lerLinhaSemLocal(linha: string, anoPadrao: number): LinhaRetirada {
   const s = linha.trim();
   const n = normalizarDataExtenso(s).trim();
   const m =
@@ -133,7 +156,75 @@ export function separarTextoColado(texto: string, anoPadrao?: number): { linhas:
       .filter(Boolean);
     local = bloco.length ? bloco.join("\n") : null;
   }
-  return { linhas: converterTextoColado((i >= 0 ? linhas.slice(0, i) : linhas).join("\n"), anoPadrao), local };
+  let dias = converterTextoColado((i >= 0 ? linhas.slice(0, i) : linhas).join("\n"), anoPadrao);
+  if (!local) {
+    // locais por dia (texto corrido): um só → vira o Local de entrega; vários → lista "13/11: …"
+    const comLocal = dias.filter(ehDia).filter((d) => d.local);
+    const distintos = [...new Set(comLocal.map((d) => d.local!))];
+    if (distintos.length === 1) {
+      local = distintos[0];
+      dias = dias.map((d) => (ehDia(d) ? { data: d.data, inicio: d.inicio, fim: d.fim } : d));
+    } else if (distintos.length > 1) {
+      local = comLocal.map((d) => `${rotuloData(d.data).slice(0, 5)}: ${d.local}`).join("\n");
+    }
+  }
+  return { linhas: dias, local };
+}
+
+/** Trecho de conversa que não é local ("temos dois locais confirmados", "mesmos do ano passado"…). */
+const CONVERSA =
+  /\b(temos|teremos|confirmad[oa]s?|mesm[oa]s? do ano|ano passado|locais?\s+(?:de|para)\s+(?:a\s+)?entrega|segue|seguem|bom dia|boa tarde|boa noite|ol[áa])\b/i;
+const DIA_SEMANA = /(?<![a-zà-ú])(?:(?:segunda|ter[çc]a|quarta|quinta|sexta)(?:[\s-]*feira)?|s[áa]bado|domingo)(?![a-zà-ú])/gi;
+
+/** Sobra do texto de um dia → sugestão de local (o usuário confere antes de salvar). */
+function limparLocal(trecho: string): string {
+  return trecho
+    .split(/[,;]/)
+    .map((c) =>
+      c
+        .replace(DIA_SEMANA, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/^(?:(?:e|dia|dias|no dia|em|,)\s+)+/i, "")
+        .replace(/^(?:a\s+)?(?:entrega|retirada)s?(?:\s+de\s+kits?)?\s+(?:ser[áa]|vai\s+ser|acontece(?:r[áa])?|fica)\s+/i, "")
+        .replace(/(?:\s+(?:e|dia|dias|no dia))+$/i, "")
+        .replace(/[.:]+$/, "")
+        .trim()
+    )
+    .filter((c) => c && !/^(?:e|dia|dias)$/i.test(c) && !CONVERSA.test(c))
+    .join(", ")
+    .replace(/^(?:no|na|nos|nas|em)\s+/i, "")
+    .replace(/^./, (x) => x.toUpperCase());
+}
+
+const HORARIO_NO_TEXTO =
+  /(?:das?\s*)?(\d{1,2}(?:[h:]\d{2})?)\s*h?\s*(?:às|as|até|a|-|–)\s*(\d{1,2}(?:[h:]\d{2})?)\s*h?|a\s+partir\s+das?\s*(\d{1,2}(?:[h:]\d{2})?)\s*h?/i;
+
+/**
+ * Mensagem em texto corrido ("…agência do Sicredi na Av Protásio Alves, 1180, dia 13/11/2026
+ * das 10h às 16h e sábado dia 14/11/2026, no shopping…, das 11h às 18h."): cada data com o 1º
+ * horário depois dela; o texto em volta vira a sugestão de local daquele dia.
+ */
+export function lerTextoCorrido(texto: string, anoPadrao: number = new Date().getFullYear()): LinhaRetirada[] {
+  const t = normalizarDataExtenso(semEmojis(String(texto || "").replace(/\s+/g, " ")));
+  const datas = [...t.matchAll(/(?<![\d/])(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?![\d/])/g)];
+  const out: LinhaRetirada[] = [];
+  let cursor = 0;
+  datas.forEach((m, i) => {
+    const ini = m.index!;
+    const fimData = ini + m[0].length;
+    const proxima = i + 1 < datas.length ? datas[i + 1].index! : t.length;
+    const seg = t.slice(fimData, proxima);
+    const h = HORARIO_NO_TEXTO.exec(seg);
+    const dia = lerLinha(`${m[0]} ${h ? (h[3] ? `a partir das ${h[3]}` : `${h[1]} às ${h[2]}`) : ""}`, anoPadrao);
+    if (!ehDia(dia)) return;
+    const ultimo = i === datas.length - 1;
+    const depois = h ? seg.slice(0, h.index) + (ultimo ? seg.slice(h.index + h[0].length) : "") : ultimo ? seg : "";
+    const local = limparLocal(`${t.slice(cursor, ini)},${depois}`);
+    cursor = h ? fimData + h.index + h[0].length : ultimo ? t.length : fimData;
+    out.push(local ? { ...dia, local } : dia);
+  });
+  return out;
 }
 
 /**
@@ -159,7 +250,11 @@ export function converterTextoColado(texto: string, anoPadrao?: number): LinhaRe
     }
     out.push(l);
   }
-  return out.filter((l) => ehDia(l) || l.texto);
+  const porLinha = out.filter((l) => ehDia(l) || l.texto);
+  // texto corrido (datas no meio da frase): fica com ele se achar mais dias com horário
+  const comHora = (ls: LinhaRetirada[]) => ls.filter((l) => ehDia(l) && l.inicio).length;
+  const corrido = lerTextoCorrido(String(texto || ""), anoPadrao);
+  return comHora(corrido) > comHora(porLinha) ? corrido : porLinha;
 }
 
 /**
@@ -190,7 +285,15 @@ export function diaDaEntregaAntiga(dataEntrega: string | null | undefined, horaE
   return formatarDia({ data: iso, inicio: hora, fim: "" });
 }
 
-export type Chegada = { data: string; dataRotulo: string; abertura: string; chegada: string; horasAntes: number };
+export type Chegada = {
+  data: string;
+  dataRotulo: string;
+  abertura: string;
+  chegada: string;
+  horasAntes: number;
+  /** local do 1º dia, quando cada dia tem o seu */
+  local?: string;
+};
 
 /** Chegada da equipe no 1º dia (o mais cedo com hora de início): abertura − horasAntes. */
 export function chegadaPrimeiroDia(
@@ -213,10 +316,20 @@ export function chegadaPrimeiroDia(
     abertura: rotuloHora(d.inicio),
     chegada: rotuloHora(chegada),
     horasAntes,
+    ...(d.local ? { local: d.local } : {}),
   };
 }
 
-/** "⏰ Chegada da equipe no 1º dia: 06/11/2026 às 10h00 (2h antes da abertura)" */
+/** "⏰ Chegada da equipe no 1º dia: 06/11/2026 às 10h00 (2h antes da abertura)" [+ " — 📍 local"] */
 export function textoChegada(c: Chegada): string {
-  return `Chegada da equipe no 1º dia: ${c.dataRotulo} às ${c.chegada} (${c.horasAntes}h antes da abertura, ${c.abertura})`;
+  return (
+    `Chegada da equipe no 1º dia: ${c.dataRotulo} às ${c.chegada} (${c.horasAntes}h antes da abertura, ${c.abertura})` +
+    (c.local ? ` — 📍 ${c.local}` : "")
+  );
+}
+
+/** Todos os dias têm o próprio local? (aí o book não repete o endereço geral) */
+export function todosOsDiasComLocal(texto: string | null | undefined): boolean {
+  const dias = lerLinhas(texto).filter(ehDia);
+  return dias.length > 0 && dias.every((d) => !!d.local);
 }

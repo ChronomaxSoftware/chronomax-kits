@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { enderecoRetiradaBook, equipamentosBook } from "@/lib/book-equipamentos";
-import { chegadaPrimeiroDia, textoChegada } from "@/lib/datas-retirada";
+import { chegadaPrimeiroDia, textoChegada, todosOsDiasComLocal } from "@/lib/datas-retirada";
 
 type Tecnico = { id: number; nome: string; telefone: string | null };
 type Produto = { id: number; nome: string; quantidade: number };
@@ -59,7 +59,10 @@ function comDadosCalculados(ev: Evento): Evento {
     qtd_celulares_produtos_online: eq.celulares_produtos_online,
     qtd_totens: eq.totens,
     qtd_notebooks: eq.notebooks,
-    endereco_retirada: enderecoRetiradaBook(ev.endereco_retirada, ev.local_entrega) || null,
+    // cada dia já tem o seu local (entrega em locais diferentes): não repete o endereço geral
+    endereco_retirada: todosOsDiasComLocal(ev.datas_horarios_retirada)
+      ? null
+      : enderecoRetiradaBook(ev.endereco_retirada, ev.local_entrega) || null,
   };
 }
 
