@@ -3,7 +3,7 @@ import { dbRun, dbGet, dbAll, dbBatch, initDB } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { scrapeGestao } from "@/lib/scraper-fetch";
 import { iniciarSync, setProgresso, finalizarSync } from "@/lib/sync-progress";
-import { normalizarNome } from "@/lib/tecnico-match";
+import { normalizarNome, enfileirarTecnicoNovo } from "@/lib/tecnico-match";
 import { statementsApagarEventos } from "@/lib/eventos-remocao";
 import { quantidadeAposSync } from "@/lib/sync-quantidades";
 
@@ -119,13 +119,11 @@ export async function POST(req: NextRequest) {
   for (const ev of r.eventos) {
     for (const tec of ev.tecnicos_gestao || []) {
       const nomeNorm = normalizarNome(tec.nome);
-      const key = tec.cpf_prefixo || nomeNorm;
       const exists = tec.cpf_prefixo
         ? tecnicoByCpf.has(tec.cpf_prefixo) || tecnicoByNome.has(nomeNorm)
         : tecnicoByNome.has(nomeNorm);
-      if (!exists && !tecNovosToCreate.some((t) => (t.cpf_prefixo || normalizarNome(t.nome)) === key)) {
-        tecNovosToCreate.push({ nome: tec.nome, cpf_prefixo: tec.cpf_prefixo });
-      }
+      // Casa por CPF OU nome dentro do lote — a mesma pessoa vem com e sem CPF
+      if (!exists) enfileirarTecnicoNovo(tecNovosToCreate, { nome: tec.nome, cpf_prefixo: tec.cpf_prefixo });
     }
   }
 

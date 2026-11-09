@@ -1,5 +1,6 @@
 import { createClient, type Client, type InValue, type Transaction } from "@libsql/client";
 import bcrypt from "bcryptjs";
+import { planejarMesclaPorNome, type TecnicoCadastro } from "./tecnico-match";
 
 let _client: Client | null = null;
 
@@ -632,6 +633,47 @@ CREATE TABLE IF NOT EXISTS treinamento_assistidos (
     await dbRun("CREATE UNIQUE INDEX IF NOT EXISTS idx_tecnicos_cpf_unico ON tecnicos(cpf_prefixo)");
   } catch {
     /* se ainda houver duplicado não resolvido, ignora a criação do índice */
+  }
+
+  // ── Mescla de técnicos duplicados pelo NOME (roda uma vez) ──
+  // O sync antigo criava uma "casca" (só nome, sem CPF/telefone/acesso) quando a
+  // equipe da prova vinha sem CPF — ex.: DAVID 167/198. A casca era lida no lugar
+  // do cadastro real e o técnico ficava "sem telefone". Só mescla quando há UM
+  // cadastro com dados no nome; casos ambíguos (2+ com dados) ficam como estão.
+  const jaMesclouNome = await dbGet<{ valor: string }>(
+    "SELECT valor FROM settings WHERE chave = 'migr_dedupe_tecnicos_nome_v1'"
+  );
+  if (!jaMesclouNome) {
+    try {
+      const todos = await dbAll<TecnicoCadastro>(
+        "SELECT id, nome, cpf_prefixo, telefone, login, senha_hash FROM tecnicos"
+      );
+      for (const { keeper, dup } of planejarMesclaPorNome(todos)) {
+        await dbBatch([
+          {
+            sql: "INSERT OR IGNORE INTO evento_tecnicos (evento_id, tecnico_id, login_individual) SELECT evento_id, ?, login_individual FROM evento_tecnicos WHERE tecnico_id = ?",
+            args: [keeper, dup],
+          },
+          { sql: "DELETE FROM evento_tecnicos WHERE tecnico_id = ?", args: [dup] },
+          {
+            sql: "INSERT OR IGNORE INTO treinamento_assistidos (video_id, tecnico_id, assistido_em) SELECT video_id, ?, assistido_em FROM treinamento_assistidos WHERE tecnico_id = ?",
+            args: [keeper, dup],
+          },
+          { sql: "DELETE FROM treinamento_assistidos WHERE tecnico_id = ?", args: [dup] },
+          { sql: "UPDATE staff_celular_tecnico SET tecnico_id = ? WHERE tecnico_id = ?", args: [keeper, dup] },
+          { sql: "UPDATE staff_conferencia SET tecnico_id = ? WHERE tecnico_id = ?", args: [keeper, dup] },
+          { sql: "UPDATE alertas SET tecnico_id = ? WHERE tecnico_id = ?", args: [keeper, dup] },
+          { sql: "DELETE FROM convites_tecnico WHERE tecnico_id = ?", args: [dup] },
+          { sql: "DELETE FROM tecnicos WHERE id = ?", args: [dup] },
+        ]);
+      }
+      await dbRun(
+        "INSERT OR REPLACE INTO settings (chave, valor) VALUES ('migr_dedupe_tecnicos_nome_v1', ?)",
+        new Date().toISOString()
+      );
+    } catch {
+      /* não bloqueia o init se a mescla falhar — tenta de novo no próximo boot */
+    }
   }
 
   // ── Seed data ──

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizarNome, chaveTecnico } from "./tecnico-match";
+import { normalizarNome, chaveTecnico, enfileirarTecnicoNovo, planejarMesclaPorNome } from "./tecnico-match";
 
 // A raiz do bug era a identidade do técnico construída por chave frágil.
 // Estes testes cobrem o núcleo (normalização + chave canônica + deduplicação).
@@ -74,5 +74,54 @@ describe("deduplicação por identidade (cenários do bug)", () => {
       set.add(chaveTecnico(cpf, `  TEC  ${i} `)); // mesma pessoa, nome formatado diferente
     }
     expect(set.size).toBe(n);
+  });
+});
+
+describe("enfileirarTecnicoNovo", () => {
+  it("mesma pessoa com e sem CPF no mesmo lote vira UMA linha (com o CPF)", () => {
+    const l: { nome: string; cpf_prefixo: string | null }[] = [];
+    enfileirarTecnicoNovo(l, { nome: "KLEBER ANDRADE DOS SANTOS", cpf_prefixo: null });
+    enfileirarTecnicoNovo(l, { nome: "Kleber Andrade dos Santos ", cpf_prefixo: "128.260.044" });
+    expect(l).toEqual([{ nome: "KLEBER ANDRADE DOS SANTOS", cpf_prefixo: "128.260.044" }]);
+  });
+  it("ordem inversa também não duplica", () => {
+    const l: { nome: string; cpf_prefixo: string | null }[] = [];
+    enfileirarTecnicoNovo(l, { nome: "Kleber Andrade", cpf_prefixo: "128" });
+    enfileirarTecnicoNovo(l, { nome: "KLEBER ANDRADE", cpf_prefixo: null });
+    expect(l).toHaveLength(1);
+  });
+  it("pessoas diferentes continuam separadas", () => {
+    const l: { nome: string; cpf_prefixo: string | null }[] = [];
+    enfileirarTecnicoNovo(l, { nome: "Ana", cpf_prefixo: "1" });
+    enfileirarTecnicoNovo(l, { nome: "Bia", cpf_prefixo: null });
+    expect(l).toHaveLength(2);
+  });
+});
+
+describe("planejarMesclaPorNome", () => {
+  const t = (id: number, nome: string, cpf: string | null, tel: string | null, login: string | null = null) => ({
+    id, nome, cpf_prefixo: cpf, telefone: tel, login, senha_hash: null,
+  });
+  it("mescla a casca vazia no cadastro com dados (caso DAVID 167/198)", () => {
+    expect(
+      planejarMesclaPorNome([
+        t(167, "DAVID JEFFERSON GOMES RODRIGUES BARROS", "394.311.548", "11 97767-0774"),
+        t(198, "DAVID JEFFERSON GOMES RODRIGUES BARROS", null, null),
+      ])
+    ).toEqual([{ keeper: 167, dup: 198 }]);
+  });
+  it("casa nome com caixa/espaço diferente (caso THIAGO 29/88)", () => {
+    expect(planejarMesclaPorNome([t(29, "THIAGO GONSAGA DE SOUZA", "051", "4899156732"), t(88, "Thiago Gonsaga de Souza ", null, null)])).toEqual([
+      { keeper: 29, dup: 88 },
+    ]);
+  });
+  it("dois cadastros com dados diferentes → não mexe (caso CRISTIANE)", () => {
+    expect(planejarMesclaPorNome([t(76, "CRISTIANE", "000.000.000", "11 99255-3360"), t(99, "Cristiane ", "315", "11994899657")])).toEqual([]);
+  });
+  it("casca com login não é casca (não apaga acesso)", () => {
+    expect(planejarMesclaPorNome([t(1, "Zé", "1", "11999990000"), t(2, "Zé", null, null, "ze")])).toEqual([]);
+  });
+  it("só cascas → não mexe", () => {
+    expect(planejarMesclaPorNome([t(1, "Zé", null, null), t(2, "Zé", null, null)])).toEqual([]);
   });
 });
