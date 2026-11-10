@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import BotaoConviteTecnico from "@/components/BotaoConviteTecnico";
 import { normalizarNome } from "@/lib/tecnico-match";
+import { diaMes, type EntregaAlocada } from "@/lib/tecnicos-alocados";
 
 type Tecnico = {
   id: number;
@@ -12,7 +13,13 @@ type Tecnico = {
   ativo: number;
   login: string | null;
   tem_senha?: number;
+  proximas_entregas?: EntregaAlocada[];
 };
+
+type Filtro = "todos" | "alocados" | "sem_acesso";
+
+const temAcesso = (t: Tecnico) => !!(t.login && t.tem_senha);
+const alocado = (t: Tecnico) => (t.proximas_entregas?.length ?? 0) > 0;
 
 export default function TecnicosPage() {
   const [lista, setLista] = useState<Tecnico[]>([]);
@@ -37,6 +44,15 @@ export default function TecnicosPage() {
     );
   }, [lista, busca]);
 
+  const [filtro, setFiltro] = useState<Filtro>("todos");
+  const nAlocados = useMemo(() => lista.filter((t) => t.ativo && alocado(t)).length, [lista]);
+  const nSemAcesso = useMemo(() => lista.filter((t) => t.ativo && alocado(t) && !temAcesso(t)).length, [lista]);
+  const visiveis = useMemo(() => {
+    if (filtro === "alocados") return filtrados.filter((t) => t.ativo && alocado(t));
+    if (filtro === "sem_acesso") return filtrados.filter((t) => t.ativo && alocado(t) && !temAcesso(t));
+    return filtrados;
+  }, [filtrados, filtro]);
+
   function selecionar(t: Tecnico) {
     editar(t);
     setBusca("");
@@ -46,7 +62,7 @@ export default function TecnicosPage() {
 
   async function carregar() {
     // tela de gestão precisa ver inativos (pra reativar/editar)
-    const r = await fetch("/api/tecnicos?incluirInativos=1");
+    const r = await fetch("/api/tecnicos?incluirInativos=1&comEntregas=1");
     setLista(await r.json());
   }
 
@@ -145,7 +161,15 @@ export default function TecnicosPage() {
                   >
                     <span className="min-w-0">
                       <span className={t.ativo ? "text-white" : "text-slate-500"}>{t.nome}</span>
-                      <span className="block text-xs text-slate-400">{t.telefone || "sem telefone"}</span>
+                      <span className="block text-xs text-slate-400">
+                        {t.telefone || "sem telefone"}
+                        {alocado(t) && (
+                          <span className="text-sky-300">
+                            {" "}
+                            · 📦 {t.proximas_entregas!.length} entrega{t.proximas_entregas!.length > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </span>
                     </span>
                     <span className={`text-xs shrink-0 ${t.tem_senha ? "text-green-400" : "text-slate-500"}`}>
                       {t.tem_senha ? "✓ tem acesso" : "sem acesso"}
@@ -237,6 +261,32 @@ export default function TecnicosPage() {
         </div>
       </form>
 
+      <div className="flex flex-wrap gap-2 mb-3" role="group" aria-label="Filtrar técnicos">
+        {(
+          [
+            ["todos", `Todos (${lista.length})`],
+            ["alocados", `📦 Alocados (${nAlocados})`],
+            ["sem_acesso", `⚠️ Alocados sem acesso (${nSemAcesso})`],
+          ] as [Filtro, string][]
+        ).map(([f, rotulo]) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFiltro(f)}
+            aria-pressed={filtro === f}
+            className={`text-xs px-3 py-1.5 rounded-full border ${
+              filtro === f
+                ? f === "sem_acesso"
+                  ? "bg-amber-600 border-amber-500 text-white"
+                  : "bg-blue-600 border-blue-500 text-white"
+                : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-slate-800 rounded-xl overflow-hidden">
         {lista.length === 0 ? (
           <p className="p-6 text-center text-slate-400">Nenhum técnico cadastrado</p>
@@ -252,9 +302,30 @@ export default function TecnicosPage() {
               </tr>
             </thead>
             <tbody>
-              {filtrados.map((t) => (
-                <tr key={t.id} className="border-t border-slate-700">
-                  <td className="px-4 py-3 text-white">{t.nome}</td>
+              {visiveis.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-400">
+                    {filtro === "sem_acesso" ? "✅ Todos os técnicos alocados já têm acesso ao portal." : "Nenhum técnico aqui."}
+                  </td>
+                </tr>
+              )}
+              {visiveis.map((t) => (
+                <tr key={t.id} className="border-t border-slate-700 align-top">
+                  <td className="px-4 py-3 text-white">
+                    {t.nome}
+                    {alocado(t) && (
+                      <ul className="mt-1 space-y-0.5">
+                        {t.proximas_entregas!.map((e) => (
+                          <li key={e.evento_id} className="text-xs text-sky-300">
+                            <a href={`/eventos/${e.evento_id}`} className="hover:underline">
+                              📦 {diaMes(e.data)} {e.nome} #{e.numero}
+                              {e.cidade ? ` (${e.cidade}${e.uf ? `/${e.uf}` : ""})` : ""}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-slate-300">
                     {t.telefone || "-"}
                     {t.endereco && <span className="block text-xs text-slate-500 max-w-[16rem] truncate" title={t.endereco}>📍 {t.endereco}</span>}
@@ -267,6 +338,9 @@ export default function TecnicosPage() {
                     ) : (
                       <span className="text-slate-500 text-sm">sem acesso</span>
                     )}
+                    {t.ativo && alocado(t) && !temAcesso(t) ? (
+                      <span className="block mt-1 text-xs font-medium text-amber-300">⚠️ alocado e sem acesso</span>
+                    ) : null}
                     {t.ativo ? (
                       <div className="mt-1">
                         <BotaoConviteTecnico tecnico={t} />
