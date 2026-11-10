@@ -8,6 +8,7 @@ import FotoAmpliada from "@/components/kits/FotoAmpliada";
 import { chegadaPrimeiroDia, lerLinhas, ehDia, formatarDia } from "@/lib/datas-retirada";
 import { patrimoniosPorProduto } from "@/lib/equipamentos";
 import ListaPatrimonios from "@/components/equipamentos/ListaPatrimonios";
+import { EXPLICACAO_MIN, ultimaPorProduto } from "@/lib/correcoes";
 
 type Produto = {
   id: number;
@@ -46,6 +47,20 @@ type EventoPortal = {
   logins: string | null;
   /** Login individual (ex.: Master) — só deste técnico */
   meu_login: string | null;
+  /** Pedidos de correção de quantidade dele nesta prova (mais novos primeiro) */
+  correcoes?: CorrecaoPortal[];
+};
+
+type CorrecaoPortal = {
+  id: number;
+  produto_id: number;
+  qtd_antes: number;
+  qtd_pedida: number;
+  explicacao: string;
+  status: "pendente" | "aprovado" | "recusado";
+  motivo: string | null;
+  criado_em: string;
+  decidido_em: string | null;
 };
 
 function dataHora(iso: string | null) {
@@ -92,7 +107,7 @@ export default function PortalPage() {
         proximas.map((ev) => (
           // a chave muda quando o servidor confirma algo → o cartão recomeça com o estado salvo
           <CardEventoPortal
-            key={`${ev.id}:${ev.confirmado_em}:${ev.obs_em}:${ev.devolvido_em}:${ev.produtos.map((p) => `${p.recebido}-${p.qtd_recebida}`).join()}`}
+            key={`${ev.id}:${ev.confirmado_em}:${ev.obs_em}:${ev.devolvido_em}:${ev.produtos.map((p) => `${p.recebido}-${p.qtd_recebida}`).join()}:${(ev.correcoes || []).map((c) => `${c.id}-${c.status}`).join()}`}
             evento={ev}
             onSalvo={carregar}
           />
@@ -149,6 +164,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
   const [obs, setObs] = useState(evento.obs_recebimento || "");
   const obsMudou = obs.trim() !== (evento.obs_recebimento || "").trim();
 
+  const ultimas = ultimaPorProduto(evento.correcoes || []);
   const total = itens.length;
   const confirmados = itens.filter((i) => i.recebido).length;
   const status = total === 0 ? "vazio" : confirmados === total ? "confirmado" : confirmados > 0 ? "parcial" : "pendente";
@@ -164,9 +180,6 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
 
   function toggle(idx: number) {
     setItens((arr) => arr.map((it, i) => (i === idx ? { ...it, recebido: !it.recebido } : it)));
-  }
-  function setQtd(idx: number, v: number) {
-    setItens((arr) => arr.map((it, i) => (i === idx ? { ...it, qtd_recebida: v } : it)));
   }
   function marcarTodos(valor: boolean) {
     setItens((arr) => arr.map((it) => ({ ...it, recebido: valor })));
@@ -200,7 +213,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
   // Item a item (quando falta algo) — leva junto a observação
   function confirmar() {
     enviar({
-      itens: itens.map((i) => ({ produto_id: i.produto_id, recebido: i.recebido, qtd_recebida: i.qtd_recebida })),
+      itens: itens.map((i) => ({ produto_id: i.produto_id, recebido: i.recebido })),
       observacao: obs,
     });
   }
@@ -276,16 +289,16 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
                   {patrimoniosDe(evento, it.nome) && (
                     <ListaPatrimonios lista={patrimoniosDe(evento, it.nome)!} quantidade={it.quantidade} />
                   )}
+                  <SituacaoCorrecao c={ultimas.get(it.produto_id)} />
                 </div>
                 <div className="shrink-0 text-right">
-                  <label className="block text-[10px] text-slate-500 mb-0.5">recebido</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={it.qtd_recebida}
-                    onChange={(e) => setQtd(idx, parseInt(e.target.value) || 0)}
-                    className="w-16 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-white text-right"
-                  />
+                  <span className="block text-[10px] text-slate-500 mb-0.5">recebido</span>
+                  <span
+                    title="Para mudar, use ✏️ Pedir correção"
+                    className="inline-block min-w-16 bg-slate-800/60 border border-slate-700 rounded px-2 py-1 text-slate-300 text-right"
+                  >
+                    🔒 {it.qtd_recebida}
+                  </span>
                 </div>
               </li>
             ))}
@@ -305,6 +318,7 @@ function CardEventoPortal({ evento, onSalvo }: { evento: EventoPortal; onSalvo: 
           >
             {salvando ? "Salvando..." : salvo ? "✓ Salvo!" : "Faltou algo? Salvar o que marquei acima"}
           </button>
+          <PedirCorrecao eventoId={evento.id} itens={itens} onSalvo={onSalvo} />
         </>
       )}
 
@@ -404,6 +418,136 @@ function CardFinalizado({ evento, onSalvo }: { evento: EventoPortal; onSalvo: ()
         <p className="mt-3 whitespace-pre-wrap text-xs text-slate-400">📝 {evento.obs_recebimento}</p>
       )}
       {(evento.pode_devolver || evento.devolvido_em) && <Devolucao evento={evento} onSalvo={onSalvo} />}
+    </div>
+  );
+}
+
+/** Situação do último pedido de correção de um item. */
+function SituacaoCorrecao({ c }: { c?: CorrecaoPortal }) {
+  if (!c) return null;
+  if (c.status === "pendente")
+    return <p className="mt-1 text-[11px] text-amber-300">⏳ Correção para {c.qtd_pedida} aguardando autorização do escritório</p>;
+  if (c.status === "aprovado") return <p className="mt-1 text-[11px] text-green-400">✅ Correção para {c.qtd_pedida} aprovada</p>;
+  return (
+    <p className="mt-1 text-[11px] text-red-400">
+      ❌ Correção para {c.qtd_pedida} recusada{c.motivo ? `: ${c.motivo}` : ""}
+    </p>
+  );
+}
+
+/**
+ * "✏️ Pedir correção": o técnico não muda "quantos vieram" direto — informa a quantidade
+ * certa + explicação obrigatória, e o escritório aprova ou recusa.
+ */
+function PedirCorrecao({ eventoId, itens, onSalvo }: { eventoId: number; itens: ItemEstado[]; onSalvo: () => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [qtds, setQtds] = useState<Record<number, string>>({});
+  const [explicacao, setExplicacao] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  function abrir() {
+    setQtds(Object.fromEntries(itens.map((i) => [i.produto_id, String(i.qtd_recebida)])));
+    setExplicacao("");
+    setErro("");
+    setAberto(true);
+  }
+
+  const mudados = itens.filter(
+    (i) => (qtds[i.produto_id] ?? "") !== "" && Number(qtds[i.produto_id]) !== i.qtd_recebida
+  );
+  const expOk = explicacao.trim().length >= EXPLICACAO_MIN;
+
+  async function enviar() {
+    setEnviando(true);
+    setErro("");
+    try {
+      const r = await fetch(`/api/portal/eventos/${eventoId}/correcao`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itens: mudados.map((i) => ({ produto_id: i.produto_id, qtd: Number(qtds[i.produto_id]) })),
+          explicacao,
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setErro(d.error || "Não foi possível enviar. Tente de novo.");
+        return;
+      }
+      setAberto(false);
+      onSalvo();
+    } catch {
+      setErro("Sem conexão. Tente de novo.");
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  if (!aberto)
+    return (
+      <button onClick={abrir} className="mt-2 w-full text-sm text-amber-300 hover:text-amber-200 py-2">
+        ✏️ Veio quantidade diferente? Pedir correção
+      </button>
+    );
+
+  return (
+    <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+      <p className="text-sm font-semibold text-amber-200">✏️ Pedir correção de quantidade</p>
+      <p className="text-[11px] text-amber-100/80">
+        A quantidade só muda depois que o escritório autorizar. Coloque quantos vieram de verdade e explique o motivo.
+      </p>
+      <ul className="space-y-1.5">
+        {itens.map((i) => (
+          <li key={i.produto_id} className="flex items-center justify-between gap-2 text-sm">
+            <span className="min-w-0 truncate text-white">
+              {i.nome} <span className="text-xs text-slate-400">· esperado {i.quantidade}</span>
+            </span>
+            <label className="flex items-center gap-1 text-xs text-slate-400 shrink-0">
+              veio
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={qtds[i.produto_id] ?? ""}
+                onChange={(e) => setQtds((q) => ({ ...q, [i.produto_id]: e.target.value }))}
+                aria-label={`Quantos vieram de ${i.nome}`}
+                className="w-16 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white text-right"
+              />
+            </label>
+          </li>
+        ))}
+      </ul>
+      <label className="block text-xs text-amber-100">
+        Explicação (obrigatória)
+        <textarea
+          value={explicacao}
+          onChange={(e) => setExplicacao(e.target.value)}
+          rows={3}
+          maxLength={1000}
+          aria-label="Explicação da correção"
+          placeholder="Ex.: veio 1 celular a menos na caixa, conferi 2 vezes"
+          className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+        />
+      </label>
+      {erro && <p className="text-sm text-red-400">{erro}</p>}
+      <div className="flex gap-2">
+        <button onClick={() => setAberto(false)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 rounded-lg">
+          Cancelar
+        </button>
+        <button
+          onClick={enviar}
+          disabled={enviando || mudados.length === 0 || !expOk}
+          className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-lg"
+        >
+          {enviando ? "Enviando..." : "Enviar para autorização"}
+        </button>
+      </div>
+      {mudados.length === 0 ? (
+        <p className="text-[11px] text-slate-400">Mude a quantidade de pelo menos um item.</p>
+      ) : !expOk ? (
+        <p className="text-[11px] text-slate-400">Escreva a explicação (mínimo {EXPLICACAO_MIN} letras).</p>
+      ) : null}
     </div>
   );
 }

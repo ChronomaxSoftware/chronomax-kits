@@ -10,6 +10,23 @@ import { comPatrimonios } from "./retorno-acessorios-db";
 
 export type TipoAlerta = "recebimento" | "devolucao";
 
+/** Alerta com texto pronto (ex.: pedido de correção de quantidade). */
+export async function criarAlertaTexto(
+  tipo: "correcao",
+  eventoId: number | string,
+  tecnicoId: number,
+  mensagem: string
+): Promise<void> {
+  await dbRun(
+    "INSERT INTO alertas (tipo, evento_id, tecnico_id, mensagem, criado_em) VALUES (?, ?, ?, ?, ?)",
+    tipo,
+    eventoId,
+    tecnicoId,
+    mensagem,
+    new Date().toISOString()
+  );
+}
+
 export function textoAlerta(tipo: TipoAlerta, tecnico: string, prova: string, observacao?: string | null): string {
   const quem = tecnico.trim() || "Técnico";
   const acao = tipo === "recebimento" ? "confirmou que RECEBEU todo o material" : "confirmou que DEVOLVEU todo o material";

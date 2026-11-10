@@ -11,6 +11,7 @@ import CardEnvioProva from "@/components/envios/CardEnvioProva";
 import CardKitsProva from "@/components/kits/CardKitsProva";
 import { equipamentosBook } from "@/lib/book-equipamentos";
 import EditorDatasRetirada from "@/components/book/EditorDatasRetirada";
+import CardCorrecoes from "@/components/eventos/CardCorrecoes";
 import { diaDaEntregaAntiga, entregaDoPrimeiroDia } from "@/lib/datas-retirada";
 
 type Evento = {
@@ -759,6 +760,20 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
           <Card titulo="📋 Conferência diária dos celulares">
             <PainelConferencia eventoId={evento.id} />
           </Card>
+
+          <CardCorrecoes
+            eventoId={evento.id}
+            onDecidido={async () => {
+              // aprovou: a quantidade recebida e o "recebeu tudo" mudaram
+              try {
+                const ev = await fetch(`/api/eventos/${id}`).then((r) => r.json());
+                if (ev?.produtos)
+                  setEvento((atual) => (atual ? { ...atual, produtos: ev.produtos, tecnicos: ev.tecnicos ?? atual.tecnicos } : atual));
+              } catch {
+                // sem conexão: atualiza ao recarregar a página
+              }
+            }}
+          />
 
           <Card titulo="📦 Recebimento do material (técnico)">
             {evento.produtos.length === 0 ? (
