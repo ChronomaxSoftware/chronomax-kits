@@ -543,6 +543,10 @@ CREATE TABLE IF NOT EXISTS treinamento_assistidos (
     await dbRun("ALTER TABLE tecnicos ADD COLUMN cpf_prefixo TEXT");
     await dbRun("CREATE INDEX IF NOT EXISTS idx_tecnicos_cpf_prefixo ON tecnicos(cpf_prefixo)");
   }
+  // CPF completo (só dígitos) vindo do Sincronizar equipe — usado no TXT da nota fiscal
+  if (!(await colExiste("tecnicos", "cpf"))) {
+    await dbRun("ALTER TABLE tecnicos ADD COLUMN cpf TEXT");
+  }
   if (!(await colExiste("tecnicos", "email"))) {
     await dbRun("ALTER TABLE tecnicos ADD COLUMN email TEXT");
   }
