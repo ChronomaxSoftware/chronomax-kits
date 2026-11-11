@@ -64,21 +64,22 @@ export async function POST(req: NextRequest) {
         `UPDATE tecnicos SET
            nome = ?,
            cpf_prefixo = COALESCE(?, cpf_prefixo),
+           cpf = COALESCE(?, cpf),
            telefone = COALESCE(?, telefone),
            email = COALESCE(?, email),
            cidade = COALESCE(?, cidade),
            ultima_sync_gestao = ?
          WHERE id = ?`,
-        t.nome, t.cpf_prefixo, t.telefone, t.email, t.cidade, agora, id
+        t.nome, t.cpf_prefixo, t.cpf, t.telefone, t.email, t.cidade, agora, id
       );
       if (t.cpf_prefixo) porCpf.set(t.cpf_prefixo, id);
       porNome.set(nomeNorm, id);
       atualizados++;
     } else {
       const ins = await dbRun(
-        `INSERT INTO tecnicos (nome, cpf_prefixo, telefone, email, cidade, ultima_sync_gestao)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        t.nome, t.cpf_prefixo, t.telefone, t.email, t.cidade, agora
+        `INSERT INTO tecnicos (nome, cpf_prefixo, cpf, telefone, email, cidade, ultima_sync_gestao)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        t.nome, t.cpf_prefixo, t.cpf, t.telefone, t.email, t.cidade, agora
       );
       const newId = ins.lastInsertRowid as unknown as number;
       if (t.cpf_prefixo) porCpf.set(t.cpf_prefixo, newId);

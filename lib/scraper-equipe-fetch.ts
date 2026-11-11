@@ -8,6 +8,8 @@ import { GestaoAPI } from "./gestao-api";
 
 export type TecnicoEquipe = {
   cpf_prefixo: string | null;
+  /** CPF completo, só dígitos (11) — para a nota fiscal */
+  cpf: string | null;
   nome: string;
   telefone: string | null;
   email: string | null;
@@ -57,17 +59,20 @@ export async function scrapeEquipe(opts: EquipeScrapeOptions): Promise<EquipeScr
 
       // CPF prefixo: ex "12345678900" → "123.456.789"
       let cpf_prefixo: string | null = null;
+      let cpf: string | null = null;
       if (s.document && s.documentType === "cpf") {
         const digits = s.document.replace(/\D/g, "");
         if (digits.length >= 9) {
           cpf_prefixo = `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}`;
         }
+        if (digits.length === 11) cpf = digits;
       }
 
       const nome = s.companyName || s.tradeName || "";
 
       tecnicos.push({
         cpf_prefixo,
+        cpf,
         nome,
         telefone: s.phone || null,
         email: s.email || null,

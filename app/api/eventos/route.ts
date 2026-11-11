@@ -51,8 +51,9 @@ export async function GET() {
     nome: string;
     funcao: string | null;
     atribuido_em: string | null;
+    cpf: string | null;
   }>(
-    `SELECT et.evento_id, t.id, t.nome, et.funcao, et.atribuido_em
+    `SELECT et.evento_id, t.id, t.nome, et.funcao, et.atribuido_em, t.cpf
      FROM evento_tecnicos et JOIN tecnicos t ON t.id = et.tecnico_id
      WHERE t.ativo = 1`
   );
@@ -70,7 +71,8 @@ export async function GET() {
     ...e,
     tecnicos: tecnicosPorEvento
       .filter((t) => t.evento_id === e.id)
-      .map(({ id, nome, funcao, atribuido_em }) => ({ id, nome, funcao, atribuido_em })),
+      // cpf: só para o TXT da nota fiscal (esta rota é só do admin — ver proxy.ts)
+      .map(({ id, nome, funcao, atribuido_em, cpf }) => ({ id, nome, funcao, atribuido_em, cpf })),
     produtos: produtosPorEvento
       .filter((p) => p.evento_id === e.id)
       .map(({ id, nome, quantidade }) => ({ id, nome, quantidade })),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { quantidadesNota, textoNotaFiscalSemana, type EventoNota } from "./nota-fiscal";
+import { formatarCpf, quantidadesNota, textoNotaFiscalSemana, type EventoNota } from "./nota-fiscal";
 
 const ev = (o: Partial<EventoNota>): EventoNota => ({
   numero: "1",
@@ -36,7 +36,7 @@ describe("textoNotaFiscalSemana", () => {
         data: "01/11/2026",
         cidade: "São Paulo",
         uf: "SP",
-        tecnicos: [{ nome: "Maria" }],
+        tecnicos: [{ nome: "Maria", cpf: "987.654.321-00" }],
         produtos: [
           { nome: "Celular", quantidade: 2 },
           { nome: "Tablet", quantidade: 1 },
@@ -46,7 +46,7 @@ describe("textoNotaFiscalSemana", () => {
         numero: "10",
         nome: "Maratona A",
         data: "31/10/2026",
-        tecnicos: [{ nome: "João" }, { nome: "Ana" }],
+        tecnicos: [{ nome: "João", cpf: "12345678900" }, { nome: "Ana", cpf: null }],
         produtos: [
           { nome: "Celular", quantidade: 5 },
           { nome: "Totem", quantidade: 1 },
@@ -59,12 +59,13 @@ describe("textoNotaFiscalSemana", () => {
       [
         "NOTA FISCAL — Semana 26/10/2026 a 01/11/2026",
         "",
-        "Técnico: João, Ana",
+        "Técnico: João — CPF 123.456.789-00",
+        "Técnico: Ana — CPF: não cadastrado no Gestão",
         "Prova: Maratona A (#10) — 31/10/2026 — Porto Alegre/RS",
         "Celular Motorola: 5",
         "Totem Sunmi: 1",
         "",
-        "Técnico: Maria",
+        "Técnico: Maria — CPF 987.654.321-00",
         "Prova: Corrida B (#20) — 01/11/2026 — São Paulo/SP",
         "Celular Motorola: 2",
         "Tablet Positivo: 1",
@@ -83,5 +84,14 @@ describe("textoNotaFiscalSemana", () => {
       "Técnico: (sem técnico)"
     );
     expect(textoNotaFiscalSemana(ini, fim, [ev({})])).toContain("Nenhuma prova desta semana");
+  });
+});
+
+describe("formatarCpf", () => {
+  it("formata 11 dígitos e recusa o resto", () => {
+    expect(formatarCpf("12345678900")).toBe("123.456.789-00");
+    expect(formatarCpf("123.456.789-00")).toBe("123.456.789-00");
+    expect(formatarCpf("123456789")).toBeNull();
+    expect(formatarCpf(null)).toBeNull();
   });
 });

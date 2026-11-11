@@ -22,9 +22,21 @@ export type EventoNota = {
   data: string;
   cidade: string | null;
   uf: string | null;
-  tecnicos: { nome: string }[];
+  tecnicos: { nome: string; cpf?: string | null }[];
   produtos: { nome: string; quantidade: number }[];
 };
+
+/** "12345678900" → "123.456.789-00"; sem 11 dígitos → null. */
+export function formatarCpf(cpf: string | null | undefined): string | null {
+  const d = (cpf || "").replace(/\D/g, "");
+  return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : null;
+}
+
+/** "Técnico: NOME — CPF 123.456.789-00" (ou aviso de CPF faltando). */
+export function linhaTecnico(t: { nome: string; cpf?: string | null }): string {
+  const cpf = formatarCpf(t.cpf);
+  return `Técnico: ${t.nome} — ${cpf ? `CPF ${cpf}` : "CPF: não cadastrado no Gestão"}`;
+}
 
 /** Quantidade por tipo (soma produtos do mesmo tipo, ex.: "Celular" + "Celular reserva"). */
 export function quantidadesNota(produtos: EventoNota["produtos"]): Map<TipoEquipamento, number> {
@@ -49,9 +61,9 @@ export function textoNotaFiscalSemana(inicio: Date, fim: Date, eventos: EventoNo
     const qtd = quantidadesNota(e.produtos);
     if (qtd.size === 0) continue;
     provas++;
-    const tecnicos = e.tecnicos.map((t) => t.nome).join(", ") || "(sem técnico)";
     const local = [e.cidade, e.uf].filter(Boolean).join("/");
-    linhas.push(`Técnico: ${tecnicos}`);
+    if (e.tecnicos.length === 0) linhas.push("Técnico: (sem técnico)");
+    for (const t of e.tecnicos) linhas.push(linhaTecnico(t));
     linhas.push(`Prova: ${e.nome} (#${e.numero})${e.data ? ` — ${e.data}` : ""}${local ? ` — ${local}` : ""}`);
     for (const { tipo, rotulo } of ITENS_NOTA) {
       const q = qtd.get(tipo);
