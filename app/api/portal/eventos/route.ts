@@ -4,6 +4,7 @@ import { getSession } from "@/lib/session";
 import { formatBR, parseDataBR } from "@/lib/semana";
 import { liberaEm, podeDevolver, situacaoProva } from "@/lib/portal-situacao";
 import { listarKits } from "@/lib/kits-foto-db";
+import { listarCorrecoes } from "@/lib/correcoes-db";
 
 /** Histórico: provas de até 30 dias atrás aparecem como "Finalizado" (só leitura). */
 const DIAS_PASSADOS = 30;
@@ -86,10 +87,23 @@ export async function GET() {
        WHERE evento_id = ? ORDER BY tipo, patrimonio`,
       ev.id
     );
+    // Pedidos de correção de quantidade dele nesta prova (o portal mostra o último de cada item)
+    const correcoes = await listarCorrecoes(ev.id, tid);
     result.push({
       ...ev,
       produtos,
       equipamentos,
+      correcoes: correcoes.map(({ id, produto_id, qtd_antes, qtd_pedida, explicacao, status, motivo, criado_em, decidido_em }) => ({
+        id,
+        produto_id,
+        qtd_antes,
+        qtd_pedida,
+        explicacao,
+        status,
+        motivo,
+        criado_em,
+        decidido_em,
+      })),
       kits: kits.filter((k) => k.evento_id === ev.id).map(({ id, nome, descricao, foto_url, categoria }) => ({ id, nome, descricao, foto_url, categoria })),
     });
   }

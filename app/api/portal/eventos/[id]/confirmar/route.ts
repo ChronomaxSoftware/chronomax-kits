@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dbAll, dbGet, dbRun, initDB } from "@/lib/db";
+import { dbGet, dbRun, initDB } from "@/lib/db";
+import { SQL_QTD_OFICIAL, atualizarConfirmacao } from "@/lib/correcoes-db";
 import { getSession } from "@/lib/session";
 import { parseDataBR } from "@/lib/semana";
 import { situacaoProva } from "@/lib/portal-situacao";
@@ -8,7 +9,7 @@ import { criarAlerta } from "@/lib/alertas";
 /**
  * POST /api/portal/eventos/[id]/confirmar
  * { tudo?: true }                     → recebeu todo o material (qtd recebida = esperada)
- * { itens?: [{produto_id, recebido, qtd_recebida}] } → confirmação item a item
+ * { itens?: [{produto_id, recebido}] } → confirmação item a item (qtd_recebida do técnico é ignorada)
  * { observacao?: string }             → observação do técnico (vazia apaga)
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -44,23 +45,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Itens inválidos" }, { status: 400 });
   }
 
+  // A quantidade ("quantos vieram") NÃO vem do técnico: vale a esperada ou a última correção
+  // aprovada pelo escritório. Para mudar, o técnico pede correção (/correcao) com explicação.
   const agora = new Date().toISOString();
   if (tudo === true) {
     await dbRun(
-      `UPDATE evento_produtos SET recebido = 1, qtd_recebida = quantidade, recebido_em = ? WHERE evento_id = ?`,
+      `UPDATE evento_produtos SET recebido = 1, qtd_recebida = ${SQL_QTD_OFICIAL}, recebido_em = ? WHERE evento_id = ?`,
       agora,
       id
     );
   } else if (Array.isArray(itens)) {
     for (const it of itens) {
       const recebido = it.recebido ? 1 : 0;
-      const qtdRaw = it.qtd_recebida;
-      const qtd = qtdRaw === null || qtdRaw === undefined || qtdRaw === "" ? null : Number(qtdRaw);
       await dbRun(
-        `UPDATE evento_produtos SET recebido = ?, qtd_recebida = ?, recebido_em = ?
+        `UPDATE evento_produtos SET recebido = ?, qtd_recebida = ${SQL_QTD_OFICIAL}, recebido_em = ?
          WHERE evento_id = ? AND produto_id = ?`,
         recebido,
-        qtd,
         recebido ? agora : null,
         id,
         it.produto_id
@@ -80,27 +80,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // Marca (ou desmarca) que ESTE técnico confirmou tudo: todos os itens recebidos na quantidade esperada
-  const pend = await dbAll(
-    "SELECT 1 FROM evento_produtos WHERE evento_id = ? AND (COALESCE(recebido, 0) = 0 OR COALESCE(qtd_recebida, quantidade) < quantidade)",
-    id
-  );
-  const total = await dbGet<{ n: number }>("SELECT COUNT(*) AS n FROM evento_produtos WHERE evento_id = ?", id);
-  const completo = pend.length === 0 && (Number(total?.n) || 0) > 0;
+  let completo = false;
   if (tudo === true || Array.isArray(itens)) {
-    const antes = await dbGet<{ confirmado_em: string | null }>(
-      "SELECT confirmado_em FROM evento_tecnicos WHERE evento_id = ? AND tecnico_id = ?",
-      id,
-      session.tecnicoId
-    );
-    if (completo && !antes?.confirmado_em) {
+    const r = await atualizarConfirmacao(id, session.tecnicoId, agora);
+    completo = r.completo;
+    if (r.novo) {
       await criarAlerta("recebimento", id, session.tecnicoId, typeof body.observacao === "string" ? body.observacao : null);
     }
-    await dbRun(
-      "UPDATE evento_tecnicos SET confirmado_em = ? WHERE evento_id = ? AND tecnico_id = ?",
-      completo ? agora : null,
-      id,
-      session.tecnicoId
-    );
   }
 
   return NextResponse.json({ ok: true, completo });

@@ -440,6 +440,22 @@ CREATE TABLE IF NOT EXISTS treinamento_assistidos (
   FOREIGN KEY (video_id) REFERENCES treinamento_videos(id) ON DELETE CASCADE,
   FOREIGN KEY (tecnico_id) REFERENCES tecnicos(id) ON DELETE CASCADE
 );
+
+-- Correção de "quantos vieram" de cada item: o técnico pede (com explicação), o escritório aprova/recusa
+CREATE TABLE IF NOT EXISTS correcoes_quantidade (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  evento_id INTEGER NOT NULL,
+  tecnico_id INTEGER NOT NULL,
+  produto_id INTEGER NOT NULL,
+  qtd_antes INTEGER NOT NULL,
+  qtd_pedida INTEGER NOT NULL,
+  explicacao TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pendente',
+  motivo TEXT,
+  criado_em TEXT NOT NULL,
+  decidido_em TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_correcoes_evento ON correcoes_quantidade(evento_id);
   `);
 
   // ── Migrations (ALTER TABLE) ──
