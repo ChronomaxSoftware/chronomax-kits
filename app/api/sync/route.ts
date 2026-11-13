@@ -172,9 +172,9 @@ export async function POST(req: NextRequest) {
   }
   if (novosEventos.length > 0) {
     const insertStmts = novosEventos.map((ev) => ({
-      sql: `INSERT INTO eventos (numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, url_gestao, tem_kit, local_prova, url_site_oficial, tipo_kit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO eventos (numero, nome, data, cidade, uf, qtd_celulares, dias_entrega, qtd_atletas, nivel, url_gestao, tem_kit, local_prova, url_site_oficial, tipo_kit, cliente) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      args: [ev.numero, ev.nome, ev.data, ev.cidade, ev.uf, ev.qtd_celulares, ev.dias_entrega, ev.qtd_atletas, ev.nivel, ev.url, ev.tem_entrega_kit ? 1 : 0, ev.local_prova, ev.url_site_oficial, ev.tipo_kit] as any[],
+      args: [ev.numero, ev.nome, ev.data, ev.cidade, ev.uf, ev.qtd_celulares, ev.dias_entrega, ev.qtd_atletas, ev.nivel, ev.url, ev.tem_entrega_kit ? 1 : 0, ev.local_prova, ev.url_site_oficial, ev.tipo_kit, ev.cliente ?? null] as any[],
     }));
     const resultados: Awaited<ReturnType<typeof dbBatch>> = [];
     for (let i = 0; i < insertStmts.length; i += 200) {
@@ -202,8 +202,8 @@ export async function POST(req: NextRequest) {
       ? quantidadeAposSync(Number(cel.qtd_celulares) || 0, cel.qtd_celulares_gestao ?? null, ev.qtd_celulares || 0)
       : ev.qtd_celulares;
     allStmts.push({
-      sql: `UPDATE eventos SET nome = ?, data = ?, cidade = ?, uf = ?, qtd_celulares = ?, qtd_celulares_gestao = ?, dias_entrega = ?, qtd_atletas = ?, nivel = ?, url_gestao = ?, tem_kit = ?, local_prova = ?, url_site_oficial = ?, tipo_kit = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      args: [ev.nome, ev.data, ev.cidade, ev.uf, qtdCelulares, ev.qtd_celulares || 0, ev.dias_entrega, ev.qtd_atletas, ev.nivel, ev.url, temKit, ev.local_prova, ev.url_site_oficial, ev.tipo_kit, eid],
+      sql: `UPDATE eventos SET nome = ?, data = ?, cidade = ?, uf = ?, qtd_celulares = ?, qtd_celulares_gestao = ?, dias_entrega = ?, qtd_atletas = ?, nivel = ?, url_gestao = ?, tem_kit = ?, local_prova = ?, url_site_oficial = ?, tipo_kit = ?, cliente = COALESCE(?, cliente), updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      args: [ev.nome, ev.data, ev.cidade, ev.uf, qtdCelulares, ev.qtd_celulares || 0, ev.dias_entrega, ev.qtd_atletas, ev.nivel, ev.url, temKit, ev.local_prova, ev.url_site_oficial, ev.tipo_kit, ev.cliente ?? null, eid],
     });
 
     // Produtos (card "Produtos"): o que o usuário editou não é sobrescrito, salvo se o Gestão

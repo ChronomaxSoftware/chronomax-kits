@@ -685,6 +685,15 @@ function BotoesTxtSemana({ inicio, fim, eventos }: { inicio: Date; fim: Date; ev
           📊 Baixar Excel
         </a>
       )}
+      {eventos.length > 0 && (
+        <a
+          href={`/api/eventos/excel-apuradores?ids=${eventos.map((e) => e.id).join(",")}&nome=apuradores_${periodo}`}
+          title="Uma linha por prova: cliente, apurador, se tem EK e quem faz a EK"
+          className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded whitespace-nowrap"
+        >
+          📊 Excel apuradores
+        </a>
+      )}
     </div>
   );
 }

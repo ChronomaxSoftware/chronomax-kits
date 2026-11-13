@@ -22,6 +22,8 @@ export type EventoExtraido = {
    *   - null: sem kit
    */
   tipo_kit: "entrega" | "sistema" | null;
+  /** Cliente da proposta no Gestão (só vem pela API) */
+  cliente?: string | null;
   tecnicos_gestao: {
     nome: string;
     funcao: string | null;

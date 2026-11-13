@@ -171,6 +171,7 @@ function mapProposalToEvento(
     local_prova: null,
     url_site_oficial: null,
     tipo_kit,
+    cliente: proposal.Client?.name?.trim() || null,
     tecnicos_gestao,
     itens_brutos,
     tem_entrega_kit,

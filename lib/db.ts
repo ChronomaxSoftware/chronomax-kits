@@ -493,6 +493,7 @@ CREATE INDEX IF NOT EXISTS idx_correcoes_evento ON correcoes_quantidade(evento_i
     ["eventos", "usuarios_evento", "ALTER TABLE eventos ADD COLUMN usuarios_evento TEXT"],
     ["eventos", "local_prova", "ALTER TABLE eventos ADD COLUMN local_prova TEXT"],
     ["eventos", "tipo_kit", "ALTER TABLE eventos ADD COLUMN tipo_kit TEXT"],
+    ["eventos", "cliente", "ALTER TABLE eventos ADD COLUMN cliente TEXT"],
     // Último qtd_celulares vindo do Gestão (o campo "Celulares" editado à mão não é sobrescrito)
     ["eventos", "qtd_celulares_gestao", "ALTER TABLE eventos ADD COLUMN qtd_celulares_gestao INTEGER"],
     ["evento_equipe_gestao", "is_entrega_kit", "ALTER TABLE evento_equipe_gestao ADD COLUMN is_entrega_kit INTEGER DEFAULT 0"],
