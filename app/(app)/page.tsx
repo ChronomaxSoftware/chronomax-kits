@@ -676,6 +676,15 @@ function BotoesTxtSemana({ inicio, fim, eventos }: { inicio: Date; fim: Date; ev
         gerar={() => textoNotaFiscalSemana(inicio, fim, eventos)}
       />
       <BotaoTxtSeparacao inicio={inicio} fim={fim} eventos={eventos} nomeArquivo={`separacao_${periodo}.txt`} />
+      {eventos.length > 0 && (
+        <a
+          href={`/api/eventos/excel-semana?ids=${eventos.map((e) => e.id).join(",")}&nome=provas_${periodo}`}
+          title="Todas as provas da semana com todos os convocados (equipe do Gestão + técnicos)"
+          className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded whitespace-nowrap"
+        >
+          📊 Baixar Excel
+        </a>
+      )}
     </div>
   );
 }
