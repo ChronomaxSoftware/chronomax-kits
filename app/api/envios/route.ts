@@ -14,6 +14,8 @@ type Linha = {
   cidade: string | null;
   uf: string | null;
   local_prova: string | null;
+  numeros_vai_cliente: number | null;
+  numeros_quem_leva: string | null;
   data_envio: string | null;
   endereco: string | null;
   material_em: string | null;
@@ -57,6 +59,7 @@ export async function GET() {
   const provas = await dbAll<Linha>(
     `SELECT e.id, e.numero, e.nome, e.data, e.cidade, e.uf, e.local_prova,
             e.qtd_celulares_grupo_online, e.qtd_celulares_produtos_online,
+            e.numeros_vai_cliente, e.numeros_quem_leva,
             v.data_envio, v.endereco, v.material_em, v.material_por, v.numeros_em, v.numeros_por,
             v.devolvido_em, v.devolvido_por,
             v.obs, v.obs_em, v.obs_por

@@ -15,6 +15,7 @@ import {
 import { BotaoEtapa } from "../telao/ListaTelao";
 import { patrimoniosPorProduto } from "@/lib/equipamentos";
 import ListaPatrimonios from "@/components/equipamentos/ListaPatrimonios";
+import { textoNumerosCliente } from "@/lib/numeros-cliente";
 
 type Tecnico = {
   id: number;
@@ -33,6 +34,8 @@ type Prova = {
   cidade: string | null;
   uf: string | null;
   local_prova: string | null;
+  numeros_vai_cliente?: number | null;
+  numeros_quem_leva?: string | null;
   data_envio: string | null;
   endereco: string | null;
   material_em: string | null;
@@ -371,6 +374,9 @@ function CardEnvio({ prova: p, podeAbrirProva, onSalvo }: { prova: Prova; podeAb
           <span>🔢 Números de peito</span>
           <span className={p.numeros_em ? "text-emerald-300" : "text-slate-500"}>{p.numeros_em ? "enviados ✓" : "enviar junto"}</span>
         </p>
+        {textoNumerosCliente(p.numeros_vai_cliente, p.numeros_quem_leva) && (
+          <p className="text-amber-300 font-medium">🔢 {textoNumerosCliente(p.numeros_vai_cliente, p.numeros_quem_leva)}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
