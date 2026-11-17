@@ -491,6 +491,9 @@ CREATE INDEX IF NOT EXISTS idx_correcoes_evento ON correcoes_quantidade(evento_i
     ["eventos", "url_site_oficial", "ALTER TABLE eventos ADD COLUMN url_site_oficial TEXT"],
     ["eventos", "links_evento", "ALTER TABLE eventos ADD COLUMN links_evento TEXT"],
     ["eventos", "usuarios_evento", "ALTER TABLE eventos ADD COLUMN usuarios_evento TEXT"],
+    // Números de peito que vão para o cliente e quem leva
+    ["eventos", "numeros_vai_cliente", "ALTER TABLE eventos ADD COLUMN numeros_vai_cliente INTEGER DEFAULT 0"],
+    ["eventos", "numeros_quem_leva", "ALTER TABLE eventos ADD COLUMN numeros_quem_leva TEXT"],
     ["eventos", "local_prova", "ALTER TABLE eventos ADD COLUMN local_prova TEXT"],
     ["eventos", "tipo_kit", "ALTER TABLE eventos ADD COLUMN tipo_kit TEXT"],
     ["eventos", "cliente", "ALTER TABLE eventos ADD COLUMN cliente TEXT"],

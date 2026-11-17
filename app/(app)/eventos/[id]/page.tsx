@@ -49,6 +49,8 @@ type Evento = {
   links_evento: string | null;
   usuarios_evento: string | null;
   qtd_notebook_atendimento: number;
+  numeros_vai_cliente?: number | null;
+  numeros_quem_leva?: string | null;
   tecnicos: {
     id: number;
     nome: string;
@@ -98,6 +100,9 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
   const [urlSiteOficial, setUrlSiteOficial] = useState("");
   const [linksEvento, setLinksEvento] = useState("");
   const [usuariosEvento, setUsuariosEvento] = useState("");
+  // Números de peito que vão para o cliente e quem leva
+  const [numerosVaiCliente, setNumerosVaiCliente] = useState(false);
+  const [numerosQuemLeva, setNumerosQuemLeva] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [loginsCopiados, setLoginsCopiados] = useState(false);
@@ -138,6 +143,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
       setUrlSiteOficial(ev.url_site_oficial || "");
       setLinksEvento(ev.links_evento || "");
       setUsuariosEvento(ev.usuarios_evento || "");
+      setNumerosVaiCliente(ev.numeros_vai_cliente === 1);
+      setNumerosQuemLeva(ev.numeros_quem_leva || "");
       setLoginsTecnicos(
         Object.fromEntries(ev.tecnicos.map((t: { id: number; login_individual?: string | null }) => [t.id, t.login_individual || ""]))
       );
@@ -224,6 +231,8 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
         url_site_oficial: urlSiteOficial || null,
         links_evento: linksEvento || null,
         usuarios_evento: usuariosEvento || null,
+        numeros_vai_cliente: numerosVaiCliente,
+        numeros_quem_leva: numerosQuemLeva || null,
         tecnicos: Array.from(tecnicosSel),
         // só de quem continua atribuído (quem saiu perde o vínculo e o login junto)
         logins_tecnicos: Object.fromEntries(Object.entries(loginsTecnicos).filter(([tid]) => tecnicosSel.has(Number(tid)))),
@@ -556,6 +565,68 @@ export default function EventoPage({ params }: { params: Promise<{ id: string }>
 
           <CardKitsProva eventoId={Number(id)} />
           <CardKitsProva eventoId={Number(id)} categoria="numero" />
+
+          <Card titulo="🔢 Números de peito → cliente">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Vai para o cliente?</label>
+                <div className="flex gap-2">
+                  {[
+                    { v: true, r: "Sim" },
+                    { v: false, r: "Não" },
+                  ].map((o) => (
+                    <button
+                      key={o.r}
+                      type="button"
+                      onClick={() => setNumerosVaiCliente(o.v)}
+                      className={`px-4 py-1.5 rounded-lg text-sm border ${
+                        numerosVaiCliente === o.v
+                          ? "bg-blue-600 border-blue-500 text-white"
+                          : "bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500"
+                      }`}
+                    >
+                      {o.r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {numerosVaiCliente && (
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Quem leva (toque num técnico da prova ou digite outro nome)
+                  </label>
+                  <input
+                    value={numerosQuemLeva}
+                    onChange={(e) => setNumerosQuemLeva(e.target.value)}
+                    maxLength={200}
+                    placeholder="Ex.: técnico, motorista, transportadora, o próprio cliente"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  />
+                  {tecnicosSel.size > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {tecnicos
+                        .filter((t) => tecnicosSel.has(t.id))
+                        .map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setNumerosQuemLeva(t.nome)}
+                            className={`text-xs px-2 py-1 rounded border ${
+                              numerosQuemLeva.trim() === t.nome
+                                ? "bg-blue-600 border-blue-500 text-white"
+                                : "bg-slate-800 border-slate-700 text-slate-300 hover:border-blue-500"
+                            }`}
+                          >
+                            {t.nome}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-slate-500 mt-1">Aparece na aba Envios e no book. Lembre de clicar em Salvar.</p>
+                </div>
+              )}
+            </div>
+          </Card>
 
           <Card titulo="📘 Book — Links">
             <div className="space-y-3">

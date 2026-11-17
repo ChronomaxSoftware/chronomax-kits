@@ -4,6 +4,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { enderecoRetiradaBook, equipamentosBook } from "@/lib/book-equipamentos";
 import { chegadaPrimeiroDia, textoChegada, todosOsDiasComLocal } from "@/lib/datas-retirada";
+import { textoNumerosCliente } from "@/lib/numeros-cliente";
 
 type Tecnico = { id: number; nome: string; telefone: string | null };
 type Produto = { id: number; nome: string; quantidade: number };
@@ -41,6 +42,8 @@ type Evento = {
   entrega_locais_separados: string | null;
   links_evento: string | null;
   usuarios_evento: string | null;
+  numeros_vai_cliente?: number | null;
+  numeros_quem_leva?: string | null;
   tecnicos: Tecnico[];
   produtos: Produto[];
 };
@@ -117,6 +120,12 @@ function montarTexto(ev: Evento): string {
       linhas.push(``);
       linhas.push(`Obs: ${ev.obs_retirada}`);
     }
+    linhas.push(``);
+  }
+
+  const numerosCliente = textoNumerosCliente(ev.numeros_vai_cliente, ev.numeros_quem_leva);
+  if (numerosCliente) {
+    linhas.push(`🔢 *${numerosCliente}*`);
     linhas.push(``);
   }
 
@@ -383,6 +392,12 @@ export default function BookEventoPage({ params }: { params: Promise<{ id: strin
               )}
             </div>
           </>
+        )}
+
+        {textoNumerosCliente(evento.numeros_vai_cliente, evento.numeros_quem_leva) && (
+          <p className="mt-6 bg-black/40 border border-amber-500/60 rounded-lg p-3 text-sm font-bold text-amber-300">
+            🔢 {textoNumerosCliente(evento.numeros_vai_cliente, evento.numeros_quem_leva)}
+          </p>
         )}
 
         <span className="logo-rodape">

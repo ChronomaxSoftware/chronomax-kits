@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbRun, dbGet, dbAll, dbBatch, initDB } from "@/lib/db";
 import { statementsApagarEventos } from "@/lib/eventos-remocao";
 import { qtdNotebookAtendimento } from "@/lib/notebook-atendimento";
+import { normalizarNumerosCliente } from "@/lib/numeros-cliente";
 
 const LOGIN_INDIVIDUAL_MAX = 500;
 
@@ -61,6 +62,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       updates.push(`${c} = ?`);
       values.push(body[c]);
     }
+  }
+  if ("numeros_vai_cliente" in body) {
+    const n = normalizarNumerosCliente(body.numeros_vai_cliente, body.numeros_quem_leva);
+    updates.push("numeros_vai_cliente = ?", "numeros_quem_leva = ?");
+    values.push(n.vai, n.quem);
   }
   if ("base1_ok" in body) {
     updates.push("base1_ok_em = ?");
