@@ -5,6 +5,7 @@ import Link from "next/link";
 import BotaoTxtSemana from "@/components/BotaoTxtSemana";
 import BotaoTxtSeparacao from "@/components/BotaoTxtSeparacao";
 import { textoNotaFiscalSemana } from "@/lib/nota-fiscal";
+import { diaIso } from "@/lib/periodo";
 import { textoTecnicosSemana } from "@/lib/txt-tecnicos";
 import { rotuloDataEnvio, situacaoEnvio } from "@/lib/envios";
 import { parseDataBR, inicioSemana, fimSemana, formatBR, chaveSemana, dataNaJanela, JANELA_SEMANAS } from "@/lib/semana";
@@ -676,24 +677,21 @@ function BotoesTxtSemana({ inicio, fim, eventos }: { inicio: Date; fim: Date; ev
         gerar={() => textoNotaFiscalSemana(inicio, fim, eventos)}
       />
       <BotaoTxtSeparacao inicio={inicio} fim={fim} eventos={eventos} nomeArquivo={`separacao_${periodo}.txt`} />
-      {eventos.length > 0 && (
-        <a
-          href={`/api/eventos/excel-semana?ids=${eventos.map((e) => e.id).join(",")}&nome=provas_${periodo}`}
-          title="Todas as provas da semana com todos os convocados (equipe do Gestão + técnicos)"
-          className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded whitespace-nowrap"
-        >
-          📊 Baixar Excel
-        </a>
-      )}
-      {eventos.length > 0 && (
-        <a
-          href={`/api/eventos/excel-apuradores?ids=${eventos.map((e) => e.id).join(",")}&nome=apuradores_${periodo}`}
-          title="Uma linha por prova: cliente, apurador, se tem EK e quem faz a EK"
-          className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded whitespace-nowrap"
-        >
-          📊 Excel apuradores
-        </a>
-      )}
+      {/* Excel: TODAS as provas do período (com ou sem kit, sem os filtros da tela) */}
+      <a
+        href={`/api/eventos/excel-semana?inicio=${diaIso(inicio)}&fim=${diaIso(fim)}&nome=provas_${periodo}`}
+        title="Todas as provas da semana (com ou sem kit) com todos os convocados"
+        className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded whitespace-nowrap"
+      >
+        📊 Baixar Excel
+      </a>
+      <a
+        href={`/api/eventos/excel-apuradores?inicio=${diaIso(inicio)}&fim=${diaIso(fim)}&nome=apuradores_${periodo}`}
+        title="Todas as provas da semana: cliente, apurador, se tem EK e quem faz a EK"
+        className="text-xs bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1 rounded whitespace-nowrap"
+      >
+        📊 Excel apuradores
+      </a>
     </div>
   );
 }

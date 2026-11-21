@@ -2,24 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { dbAll, initDB } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { idsDoPeriodo } from "@/lib/eventos-periodo";
 import type { ConvocadoBruto } from "@/lib/excel-semana";
 import { montarLinhasApuradores, type EquipeApurador, type ProvaApurador } from "@/lib/excel-apuradores";
 
 export const runtime = "nodejs";
 
-// GET /api/eventos/excel-apuradores?ids=1,2,3&nome=apuradores_23-11_a_29-11
+// GET /api/eventos/excel-apuradores?inicio=2026-11-23&fim=2026-11-29&nome=apuradores_23-11_a_29-11
 // Uma linha por prova: cliente, apurador(es), se tem EK e quem faz a EK.
 export async function GET(req: NextRequest) {
   await initDB();
   const s = await getSession();
   if (!s.isLoggedIn || s.role !== "admin") return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const ids = (req.nextUrl.searchParams.get("ids") || "")
-    .split(",")
-    .map((x) => Number(x))
-    .filter((n) => Number.isInteger(n) && n > 0)
-    .slice(0, 500);
-  if (ids.length === 0) return NextResponse.json({ error: "Nenhuma prova" }, { status: 400 });
+  // TODAS as provas do período (com ou sem kit, sem os filtros da tela)
+  const sp = req.nextUrl.searchParams;
+  const r = await idsDoPeriodo(sp.get("inicio"), sp.get("fim"));
+  if ("erro" in r) return NextResponse.json({ error: r.erro }, { status: 400 });
+  const ids = r.length ? r : [0];
   const nomeArq = (req.nextUrl.searchParams.get("nome") || "apuradores_semana").replace(/[^\w\-]/g, "_").slice(0, 80);
   const ph = ids.map(() => "?").join(",");
 
