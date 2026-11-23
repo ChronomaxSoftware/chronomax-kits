@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DESCRICAO_KIT_MAX, NOME_KIT_MAX, nomeKitDoArquivo, type CategoriaFoto } from "@/lib/kits-foto";
+import {
+  DESCRICAO_KIT_MAX,
+  NOME_KIT_MAX,
+  ehPdf,
+  nomeKitDoArquivo,
+  nomeNumeroDoPdf,
+  pastaProducaoAno,
+  type CategoriaFoto,
+} from "@/lib/kits-foto";
 import FotoAmpliada from "./FotoAmpliada";
 
 type Kit = { id: number; nome: string; descricao: string | null; foto_url: string | null };
@@ -64,7 +72,18 @@ const TEXTOS: Record<CategoriaFoto, { titulo: string; botao: string; exemplo: st
   },
 };
 
-export default function CardKitsProva({ eventoId, categoria = "kit" }: { eventoId: number; categoria?: CategoriaFoto }) {
+export default function CardKitsProva({
+  eventoId,
+  categoria = "kit",
+  numeroProva,
+  dataProva,
+}: {
+  eventoId: number;
+  categoria?: CategoriaFoto;
+  /** Só no card de números: para mostrar onde fica a arte (PDF) na produção. */
+  numeroProva?: string;
+  dataProva?: string | null;
+}) {
   const t = TEXTOS[categoria];
   const [kits, setKits] = useState<Kit[]>([]);
   const [rascunhos, setRascunhos] = useState<Rascunho[]>([]);
@@ -74,6 +93,11 @@ export default function CardKitsProva({ eventoId, categoria = "kit" }: { eventoI
   const [editando, setEditando] = useState<{ id: number; nome: string; descricao: string } | null>(null);
   const [ampliada, setAmpliada] = useState<Kit | null>(null);
   const inputFotos = useRef<HTMLInputElement>(null);
+  /** Lendo a 1ª página dos PDFs escolhidos */
+  const [convertendo, setConvertendo] = useState<{ feitos: number; total: number } | null>(null);
+  const [pastaCopiada, setPastaCopiada] = useState(false);
+  const aceitaPdf = categoria === "numero";
+  const pasta = pastaProducaoAno(dataProva);
 
   async function carregar() {
     const r = await fetch(`/api/eventos/${eventoId}/kits?categoria=${categoria}`);
@@ -90,20 +114,52 @@ export default function CardKitsProva({ eventoId, categoria = "kit" }: { eventoI
   rascunhosRef.current = rascunhos;
   useEffect(() => () => rascunhosRef.current.forEach((r) => URL.revokeObjectURL(r.previa)), []);
 
-  function escolher(lista: FileList | null) {
+  async function escolher(lista: FileList | null) {
     if (!lista) return;
-    const novos = Array.from(lista)
-      .filter((f) => f.type.startsWith("image/"))
-      .map((f, i) => ({
-        chave: `${Date.now()}-${i}-${f.name}`,
-        arquivo: f,
-        previa: URL.createObjectURL(f),
-        nome: nomeKitDoArquivo(f.name),
-        descricao: "",
-      }));
-    setRascunhos((r) => [...r, ...novos]);
-    setMsg(null);
+    const arquivos = Array.from(lista);
     if (inputFotos.current) inputFotos.current.value = "";
+    setMsg(null);
+    const agora = Date.now();
+    const novo = (f: File, nome: string, i: number): Rascunho => ({
+      chave: `${agora}-${i}-${f.name}`,
+      arquivo: f,
+      previa: URL.createObjectURL(f),
+      nome,
+      descricao: "",
+    });
+
+    // fotos entram na hora
+    const fotos = arquivos.filter((f) => f.type.startsWith("image/"));
+    setRascunhos((r) => [...r, ...fotos.map((f, i) => novo(f, nomeKitDoArquivo(f.name), i))]);
+
+    // PDF (arte do número): "print" da 1ª página, nome = modalidade do arquivo
+    const pdfs = aceitaPdf ? arquivos.filter(ehPdf) : [];
+    if (pdfs.length === 0) return;
+    setConvertendo({ feitos: 0, total: pdfs.length });
+    const { primeiraPaginaPdf } = await import("@/lib/pdf-primeira-pagina");
+    const falhas: string[] = [];
+    for (let i = 0; i < pdfs.length; i++) {
+      try {
+        const img = await primeiraPaginaPdf(pdfs[i]);
+        const r = novo(img, nomeNumeroDoPdf(pdfs[i].name), fotos.length + i);
+        setRascunhos((lista) => [...lista, r]);
+      } catch {
+        falhas.push(pdfs[i].name);
+      }
+      setConvertendo({ feitos: i + 1, total: pdfs.length });
+    }
+    setConvertendo(null);
+    if (falhas.length) setMsg({ tipo: "erro", texto: `Não consegui ler: ${falhas.join(", ")}` });
+  }
+
+  async function copiarPasta() {
+    try {
+      await navigator.clipboard.writeText(pasta);
+      setPastaCopiada(true);
+      setTimeout(() => setPastaCopiada(false), 2000);
+    } catch {
+      /* sem permissão de copiar: o caminho continua na tela */
+    }
   }
 
   function mudar(chave: string, campo: "nome" | "descricao", valor: string) {
@@ -200,7 +256,7 @@ export default function CardKitsProva({ eventoId, categoria = "kit" }: { eventoI
         <input
           ref={inputFotos}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept={aceitaPdf ? "image/jpeg,image/png,image/webp,application/pdf,.pdf" : "image/jpeg,image/png,image/webp"}
           multiple
           onChange={(e) => escolher(e.target.files)}
           className="hidden"
@@ -208,10 +264,38 @@ export default function CardKitsProva({ eventoId, categoria = "kit" }: { eventoI
         />
         <label
           htmlFor={`fotos-${categoria}-${eventoId}`}
-          className="inline-block cursor-pointer bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg"
+          className={`inline-block cursor-pointer bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg ${
+            convertendo ? "pointer-events-none opacity-60" : ""
+          }`}
         >
-          {t.botao}
+          {convertendo ? `📄 Lendo PDF ${convertendo.feitos}/${convertendo.total}…` : t.botao}
         </label>
+        {aceitaPdf && (
+          <div className="mt-2 rounded-lg border border-slate-700 bg-slate-900/60 p-2.5 text-xs text-slate-300 space-y-1">
+            <p>
+              📄 <strong className="text-white">Arte em PDF:</strong> escolha os PDFs da pasta{" "}
+              <strong className="text-white">ARTE IMPRESSÃO</strong> (Ctrl+A seleciona todos). A 1ª página de cada PDF vira
+              a foto e o nome vem do arquivo (<em>5K PCD - ELETRIC.pdf</em> → 5K PCD).
+            </p>
+            <p className="flex flex-wrap items-center gap-2">
+              <span>Pasta:</span>
+              <code className="bg-black/40 px-1.5 py-0.5 rounded text-slate-200 break-all">{pasta}</code>
+              <button
+                type="button"
+                onClick={copiarPasta}
+                className="px-2 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-white"
+              >
+                {pastaCopiada ? "Copiado ✓" : "Copiar"}
+              </button>
+            </p>
+            {numeroProva && (
+              <p className="text-slate-400">
+                Cole no campo do endereço da janela de abrir arquivo e entre na pasta que tem{" "}
+                <strong className="text-amber-300">{numeroProva}</strong> no nome → ARTE IMPRESSÃO.
+              </p>
+            )}
+          </div>
+        )}
         <p className="text-xs text-slate-500 mt-1">
           Pode escolher várias. O nome vem do nome do arquivo (ex.: <em>{t.exemplo}</em> → {t.nomeExemplo}) — confira antes
           de salvar.
@@ -226,7 +310,7 @@ export default function CardKitsProva({ eventoId, categoria = "kit" }: { eventoI
           {rascunhos.map((x) => (
             <div key={x.chave} className="flex gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={x.previa} alt="" className="w-20 h-20 object-cover rounded flex-shrink-0" />
+              <img src={x.previa} alt="" className={`h-20 rounded flex-shrink-0 ${categoria === "numero" ? "w-28 object-contain bg-white" : "w-20 object-cover"}`} />
               <div className="flex-1 min-w-0 space-y-1.5">
                 <input
                   value={x.nome}

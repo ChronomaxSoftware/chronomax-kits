@@ -52,3 +52,25 @@ export function nomeKitDoArquivo(arquivo: string): string {
   if (!/[a-zà-ú]/i.test(s)) return ""; // sobrou só número/símbolo
   return s.toLocaleUpperCase("pt-BR").slice(0, NOME_KIT_MAX);
 }
+
+export function ehPdf(arquivo: { name: string; type: string }): boolean {
+  return arquivo.type === "application/pdf" || /\.pdf$/i.test(arquivo.name);
+}
+
+/**
+ * Arte do número de peito ("ARTE IMPRESSÃO" da produção): "5K PCD - ELETRIC.pdf" → "5K PCD".
+ * O que vem depois do último " - " é o nome da prova e sai; o resto é a modalidade.
+ */
+export function nomeNumeroDoPdf(arquivo: string): string {
+  let s = String(arquivo || "").split(/[\\/]/).pop() || "";
+  s = s.replace(/\.pdf$/i, "").replace(/\s*\(\d+\)$/, "").trim();
+  const partes = s.split(/\s+-\s+/);
+  if (partes.length > 1) s = partes.slice(0, -1).join(" - ");
+  return s.replace(/_+/g, " ").replace(/\s+/g, " ").trim().toLocaleUpperCase("pt-BR").slice(0, NOME_KIT_MAX);
+}
+
+/** Pasta do ano na produção, onde fica "MM_DD - NUMERO - NOME\ARTE IMPRESSÃO". */
+export function pastaProducaoAno(data: string | null | undefined): string {
+  const ano = String(data || "").match(/\b(20\d\d)\b/)?.[1] || String(new Date().getFullYear());
+  return `\\\\10.100.50.10\\producao\\${ano}`;
+}

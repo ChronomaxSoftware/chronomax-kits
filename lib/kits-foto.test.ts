@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ehTipoFotoKit, nomeKitDoArquivo } from "./kits-foto";
+import { ehPdf, ehTipoFotoKit, nomeKitDoArquivo, nomeNumeroDoPdf, pastaProducaoAno } from "./kits-foto";
 
 describe("nomeKitDoArquivo", () => {
   it("usa o nome do arquivo, sem extensão, em maiúsculas", () => {
@@ -39,5 +39,23 @@ describe("nomeKitDoArquivo", () => {
     expect(ehTipoFotoKit("image/webp")).toBe(true);
     expect(ehTipoFotoKit("image/svg+xml")).toBe(false);
     expect(ehTipoFotoKit("application/pdf")).toBe(false);
+  });
+});
+
+describe("arte do número de peito em PDF", () => {
+  it("nome = modalidade, sem o nome da prova", () => {
+    expect(nomeNumeroDoPdf("10K - ELETRIC.pdf")).toBe("10K");
+    expect(nomeNumeroDoPdf("5K PCD - ELETRIC.pdf")).toBe("5K PCD");
+    expect(nomeNumeroDoPdf("2,5K - ELETRIC.pdf")).toBe("2,5K");
+    expect(nomeNumeroDoPdf("KIDS - CE VERAO - RECIFE.PDF")).toBe("KIDS - CE VERAO");
+    expect(nomeNumeroDoPdf("21k_geral.pdf")).toBe("21K GERAL");
+    expect(nomeNumeroDoPdf("10K - ELETRIC (1).pdf")).toBe("10K");
+  });
+
+  it("reconhece PDF e monta a pasta do ano", () => {
+    expect(ehPdf({ name: "a.PDF", type: "" })).toBe(true);
+    expect(ehPdf({ name: "a.jpg", type: "image/jpeg" })).toBe(false);
+    expect(pastaProducaoAno("28/11/2026")).toBe(String.raw`\\10.100.50.10\producao\2026`);
+    expect(pastaProducaoAno("10/01/2027")).toBe(String.raw`\\10.100.50.10\producao\2027`);
   });
 });
