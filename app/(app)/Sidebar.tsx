@@ -8,6 +8,7 @@ import SinoAlertas from "./SinoAlertas";
 
 const LINKS = [
   { href: "/", label: "Convocações" },
+  { href: "/subir-base", label: "Subir base" },
   { href: "/importar", label: "Importar evento" },
   { href: "/tecnicos", label: "Técnicos" },
   { href: "/equipamentos", label: "Inventário" },
